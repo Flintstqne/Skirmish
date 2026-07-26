@@ -1,0 +1,10 @@
+name: Skirmish
+version: '1'
+main: org.flintstqne.skirmish.Skirmish
+api-version: '1.21'
+depend: [WeaponMechanics, InventoryFramework]
+
+permissions:
+  skirmish.admin:
+    description: Access to Skirmish admin commands
+    default: op
