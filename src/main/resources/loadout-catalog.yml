@@ -1,0 +1,45 @@
+# Loadout catalog (design doc §7.5.1) — the single source of truth for what a saved
+# preset key resolves to. Presets store the `key`, never a serialized ItemStack, so
+# rebalancing or renaming a weapon here never orphans a saved preset.
+#
+# Entry fields:
+#   key         required, unique within its category, stable — this is what presets store
+#   name        display name in the builder GUI
+#   cost        per-life point cost; 0 = free tier, always affordable
+#   wm-weapon   WeaponMechanics weapon title (the top-level key of a WM weapon .yml)
+#   item        vanilla Material, for anything WM doesn't own (armor, potions, tools)
+#   amount      stack size for vanilla items (default 1)
+#   enchants    map of Enchantment name -> level, vanilla items only
+#
+# wm-weapon values below are the weapon titles that ship with WeaponMechanics by default.
+# If you rename or remove weapons in WM's config, update them here too.
+
+categories:
+  primary:
+    - {key: ak47,    name: "AK-47",      wm-weapon: "AK_47",   cost: 0}
+    - {key: m4a1,    name: "M4A1",       wm-weapon: "M4A1",    cost: 120}
+    - {key: aug,     name: "AUG",        wm-weapon: "AUG",     cost: 150}
+    - {key: origin,  name: "Origin 12",  wm-weapon: "Origin_12", cost: 200}
+    - {key: ax50,    name: "AX-50",      wm-weapon: "AX_50",   cost: 350}
+    - {key: mg34,    name: "MG34",       wm-weapon: "MG34",    cost: 500}
+
+  secondary:
+    - {key: magnum,  name: ".357 Magnum", wm-weapon: "357_Magnum", cost: 0}
+    - {key: deagle,  name: "50 GS",       wm-weapon: "50_GS",      cost: 90}
+    - {key: uzi,     name: "Uzi",         wm-weapon: "Uzi",        cost: 140}
+
+  armor:
+    - {key: vest_none,  name: "No Vest",    item: AIR,               cost: 0}
+    - {key: vest_basic, name: "Basic Vest", item: LEATHER_CHESTPLATE, cost: 0,   enchants: {PROTECTION: 1}}
+    - {key: vest_heavy, name: "Heavy Vest", item: IRON_CHESTPLATE,    cost: 150, enchants: {PROTECTION: 2}}
+    - {key: vest_elite, name: "Elite Vest", item: DIAMOND_CHESTPLATE, cost: 400, enchants: {PROTECTION: 3}}
+
+  potion:
+    - {key: potion_none,  name: "None",           item: AIR,             cost: 0}
+    - {key: potion_heal,  name: "Splash Healing", item: SPLASH_POTION,   cost: 80}
+    - {key: potion_speed, name: "Speed Potion",   item: POTION,          cost: 60}
+
+  tool:
+    - {key: tool_none,  name: "None",         item: AIR,   cost: 0}
+    - {key: knife,      name: "Combat Knife", wm-weapon: "Combat_Knife", cost: 0}
+    - {key: grenade,    name: "Grenade",      wm-weapon: "Grenade",      cost: 100, amount: 2}

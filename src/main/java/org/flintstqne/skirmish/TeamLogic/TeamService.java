@@ -57,11 +57,14 @@ public final class TeamService implements Listener {
      * Re-evaluated on every call, so the lock lifts on its own once the gap closes.
      */
     public boolean isLocked(Team team) {
-        int mine = count(team);
-        int theirs = count(team.opposite());
+        return isLocked(count(team), count(team.opposite()), config.getImbalanceLockRatio());
+    }
+
+    /** Pure lock rule, split out so it can be tested without a running server. */
+    public static boolean isLocked(int mine, int theirs, double ratio) {
         if (mine <= theirs) return false;
         if (theirs == 0) return true;
-        return (double) mine / theirs >= config.getImbalanceLockRatio();
+        return (double) mine / theirs >= ratio;
     }
 
     /** The under-populated team while an imbalance lock is active, else null. */

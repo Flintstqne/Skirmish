@@ -60,7 +60,24 @@ Skirmish is a **separate Maven project, separate plugin.yml, separate package ro
 
 **plugin.yml**: `depend: [WeaponMechanics, InventoryFramework]`.
 
-> **Implementation note:** the exact WeaponMechanics API surface (weapon item generation calls, damage event class names, ammo/attachment hooks) differs across WM versions. You mentioned you've already tested WM integration — pin down the exact API calls against the actual installed WM version before writing `WeaponFactory` (§8.5.2); don't trust class/method names guessed in this doc.
+> **WeaponMechanics API — resolved.** WM publishes to Maven Central as
+> `com.cjcrafter:weaponmechanics` (plus `com.cjcrafter:mechanicscore`, which it needs at
+> runtime and which is *not* bundled in the WM jar). Both are `provided`. The pom pins the
+> version via the `weaponmechanics.version` property — keep it in step with the server's build.
+>
+> The API surface this project actually uses, verified identical in 4.1.0 and 4.3.1:
+>
+> | Need | Call |
+> |---|---|
+> | Weapon key → ItemStack (§7.5.2) | `WeaponMechanicsAPI.generateWeapon(String weaponTitle)` — returns null for an unknown title |
+> | Is this stack weapon X (Gun Game tiers) | `WeaponMechanicsAPI.getWeaponTitle(ItemStack)` |
+> | Kill attribution (§13) | `WeaponKillEntityEvent` — `getShooter()`, `getVictim()`, `getWeaponTitle()` |
+> | Friendly-fire cancel for guns (§7.7) | `WeaponDamageEntityEvent` (Cancellable) |
+> | Melee/knife hits (§8.5) | `WeaponMeleeHitEvent` — also exposes `isBackstab()` |
+>
+> A "weapon title" is the top-level key of a WM weapon `.yml` (`AK_47`, `Combat_Knife`,
+> `AX_50`, …), not the display name. The titles shipping with a default WM install are the
+> ones referenced by `loadout-catalog.yml`.
 
 ---
 
@@ -475,14 +492,17 @@ Full ASCII specs already agreed during design — reproduced here as the canonic
    0      1      2      3      4      5      6      7      8
 ```
 
-Swap-incentive variant (appears at slot 2 or 6, whichever side is short):
+Swap-incentive variant — the button always offers a switch **to the short team**, and sits
+beside that team's banner (slot 2 if Red is short, slot 6 if Blue is short). It's only shown to
+players currently on the full team. Below: Red is locked at 12/16, Blue is short at 9/16, so the
+button reads "SWITCH TO BLUE" and sits at slot 6.
 
 ```
 ┌──────┬──────┬──────┬──────┬──────┬──────┬──────┬──────┬──────┐
-│      │      │SWITCH│ RED  │ INFO │ BLUE │      │      │      │
-│      │      │  TO  │Banner│ Book │Banner│      │      │      │
-│      │      │ RED  │ LOCK │      │  9/16│      │      │      │
-│      │      │+50pts│ FULL │      │      │      │      │      │
+│      │      │      │ RED  │ INFO │ BLUE │SWITCH│      │      │
+│      │      │      │Banner│ Book │Banner│  TO  │      │      │
+│      │      │      │ LOCK │      │ 9/16 │ BLUE │      │      │
+│      │      │      │12/16 │      │      │+50pts│      │      │
 └──────┴──────┴──────┴──────┴──────┴──────┴──────┴──────┴──────┘
 ```
 
@@ -598,9 +618,14 @@ You want a slot reserved for this, not a built system. Recommended shape for who
 
 ## 13. Open Questions
 
-Resolved during design review: FFA uses the full loadout shop (§8.4), the KOTH `score-threshold` config key is in place (§6.1), and `/loadouts` is a GUI-only feature whose only job is opening the presets GUI directly (§10). One item remains open:
+Resolved during design review: FFA uses the full loadout shop (§8.4), the KOTH `score-threshold` config key is in place (§6.1), and `/loadouts` is a GUI-only feature whose only job is opening the presets GUI directly (§10).
 
-1. **Kill-attribution source** — confirm which WM event (or vanilla fallback) reliably identifies the shooter for point-awarding and kill-feed purposes. Not resolved here by design — you've already tested WM integration directly, so verify against your actual installed version rather than trusting anything guessed in this doc.
+**Kill-attribution source — resolved.** `WeaponKillEntityEvent` carries the shooter, the victim
+and the weapon title in one event, covering both point-awarding and the kill feed. Melee is
+`WeaponMeleeHitEvent`. Vanilla `EntityDamageByEntityEvent` is still listened to as the
+friendly-fire backstop for damage WM doesn't route. See §3 for the full API table.
+
+No open questions remain.
 
 ---
 

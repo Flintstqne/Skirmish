@@ -5,6 +5,9 @@ api-version: '1.21'
 depend: [WeaponMechanics, InventoryFramework]
 
 commands:
+  loadout:
+    description: Open the loadout builder (blocked in gamemodes without loadouts)
+    usage: /loadout
   team:
     description: Join a team, or view team status and the swap incentive
     usage: /team

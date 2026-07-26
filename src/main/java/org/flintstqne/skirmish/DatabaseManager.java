@@ -5,6 +5,7 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.logging.Logger;
 
 /**
  * Single owner of the plugin's SQLite connection (data.db). Every subsystem that
@@ -13,15 +14,17 @@ import java.sql.Statement;
  */
 public final class DatabaseManager {
 
-    private final Skirmish plugin;
+    private final File dataFolder;
+    private final Logger logger;
     private Connection connection;
 
-    public DatabaseManager(Skirmish plugin) {
-        this.plugin = plugin;
+    public DatabaseManager(File dataFolder, Logger logger) {
+        this.dataFolder = dataFolder;
+        this.logger = logger;
     }
 
     public void open() throws SQLException {
-        File file = new File(plugin.getDataFolder(), "data.db");
+        File file = new File(dataFolder, "data.db");
         //noinspection ResultOfMethodCallIgnored
         file.getParentFile().mkdirs();
         try {
@@ -42,7 +45,7 @@ public final class DatabaseManager {
         try {
             connection.close();
         } catch (SQLException e) {
-            plugin.getLogger().warning("Failed closing data.db: " + e.getMessage());
+            logger.warning("Failed closing data.db: " + e.getMessage());
         }
         connection = null;
     }
