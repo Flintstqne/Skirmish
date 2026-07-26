@@ -1,0 +1,90 @@
+# Skirmish tuning config (hand-edited).
+# Map data (spawns, hill points, capture points, boundary) lives in arena.yml,
+# set in-game via /arena — do not put map coordinates here.
+
+round:
+  duration-minutes: 30
+  score-threshold-ends-round: true
+
+team:
+  imbalance-lock-ratio: 1.5
+  swap-incentive-points: 50
+
+spawn-protection:
+  invulnerability-seconds: 10
+  # Zone protection only applies to gamemodes with FIXED spawns (TDM, KOTH, DOMINATION).
+  # FFA / GUN_GAME use random spawns — invulnerability applies, zone radius does not.
+  zone-radius-blocks: 32
+  zone-no-damage: true
+  zone-no-break: true
+  zone-no-build: true
+
+points:
+  kill: 10
+  # No diminishing-returns / repeat-kill / underdog logic by design.
+  # Points are per-life scoped and reset on death — that is the anti-snowball mechanism.
+
+death:
+  spectator-lock-radius-blocks: 50
+  respawn-seconds: 10
+
+end-round:
+  free-roam-spectator: true
+  winner-announcement-seconds: 5
+  next-round-countdown-seconds: 15
+
+vote:
+  enabled-gamemodes: [KOTH, DOMINATION, TDM, FFA, GUN_GAME]
+
+gamemode:
+  koth:
+    loadouts-enabled: true
+  domination:
+    loadouts-enabled: true
+  tdm:
+    loadouts-enabled: true
+  ffa:
+    loadouts-enabled: true
+  gun_game:
+    loadouts-enabled: false
+
+koth:
+  capture-radius-blocks: 8
+  points-per-second: 1
+  score-threshold: 300
+  particle-ring: DUST
+
+domination:
+  capture-point-count: 3
+  capture-radius-blocks: 6
+  points-per-tick-per-zone: 1
+  tick-interval-seconds: 1
+
+tdm:
+  score-threshold: 75
+
+ffa:
+  score-threshold: 30
+  min-spawn-distance-from-players: 15
+
+gungame:
+  score-threshold-is-tier-completion: true
+  weapon-ladder:
+    - PISTOL
+    - SMG
+    - SHOTGUN
+    - AR
+    - SNIPER
+    - LMG
+    - KNIFE
+  demote-on-knife-death: true
+  final-knife-kill-wins-instantly: true
+
+loadout:
+  starting-points: 0
+
+kits:
+  max-saved-presets: 5
+
+discord:
+  enabled: false

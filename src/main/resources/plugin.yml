@@ -4,6 +4,15 @@ main: org.flintstqne.skirmish.Skirmish
 api-version: '1.21'
 depend: [WeaponMechanics, InventoryFramework]
 
+commands:
+  team:
+    description: Join a team, or view team status and the swap incentive
+    usage: /team
+  arena:
+    description: Arena map-data setup (spawns, hill points, capture points, boundary)
+    usage: /arena <setspawn|addffaspawn|addhillpoint|addcapturepoint|setboundary|setworld>
+    permission: skirmish.admin
+
 permissions:
   skirmish.admin:
     description: Access to Skirmish admin commands

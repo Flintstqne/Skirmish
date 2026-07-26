@@ -41,7 +41,7 @@ Skirmish is a **separate Maven project, separate plugin.yml, separate package ro
 | IF (`com.github.stefvanschie.inventoryframework`) for GUIs | Direct dependency reuse | Same library, same relocation-in-shade approach |
 | `DeathListener` (invisible/no-effects/fly/no-phase spectator) | Ported logic | Extended with a *locked-radius* variant (in-round death) and a *free-roam* variant (end-of-round) — see §8.8 |
 | `PlacedBlockTracker` (block-change tracking pattern) | Ported *approach*, lighter implementation | Skirmish doesn't need SQLite persistence for this — see §8.3 |
-| `StatLogic` (`StatDb`/`StatService`/`StatListener`, MVP calc, leaderboards) | Ported pattern | Own schema, own categories (see §8.10) |
+| `StatLogic` (`StatService`/`StatListener`, MVP calc, leaderboards) | Ported pattern | Own schema (in the shared `DatabaseManager`, not a `StatDb`), own categories (see §8.10) |
 | `ScoreboardUtil` (periodic scoreboard push) | Direct pattern reuse | Live team score / K/D / points sidebar |
 | `ObjectiveUIManager` compass HUD | Ported pattern | Points at nearest active KOTH/Domination zone |
 | Discord bot (`discord-bot/`, `StatApiServer`) | Optional, separate reuse | Not required for v1; if wanted, stand up a second small HTTP API + a second bot instance (or extend the existing bot with a second backend URL) — do not couple it to Trenched's running instance |
@@ -66,12 +66,13 @@ Skirmish is a **separate Maven project, separate plugin.yml, separate package ro
 
 ## 4. Project / Package Structure
 
-Mirrors Trenched's convention — one package per subsystem, each with its own `Db` (if it needs persistence) and a single concrete `Service`:
+Mirrors Trenched's convention — one package per subsystem, each with a single concrete `Service` — with one deliberate departure: there's no per-subsystem `Db` class. All SQLite access is centralized in one `DatabaseManager` (see §5):
 
 ```
 src/main/java/org/flintstqne/skirmish/
 ├── Skirmish.java                 # Main plugin class — composition root (mirrors Trenched.java)
 ├── ConfigManager.java            # Typed config.yml + arena.yml access
+├── DatabaseManager.java          # SINGLE owner of the SQLite connection (data.db) — see §5
 ├── RoundLogic/
 │   ├── RoundService.java         # Round lifecycle, timer, threshold-end detection
 │   ├── GamemodeType.java         # KOTH, DOMINATION, TDM, FFA, GUN_GAME
@@ -89,7 +90,6 @@ src/main/java/org/flintstqne/skirmish/
 │   ├── LoadoutService.java       # Point economy, category/tier catalog, equip logic
 │   ├── LoadoutBuilderGui.java    # GUI #2
 │   ├── LoadoutPresetGui.java     # GUI #3 ("My Loadouts")
-│   ├── LoadoutPresetDb.java      # Persistent presets + active-preset pointer
 │   ├── WeaponFactory.java        # WeaponMechanics item generation wrapper
 │   └── LoadoutCommand.java       # /loadout, blocked in no-loadout gamemodes
 ├── CombatLogic/
@@ -108,17 +108,20 @@ src/main/java/org/flintstqne/skirmish/
 │   ├── VoteService.java
 │   └── VoteGui.java              # GUI #4
 ├── StatLogic/
-│   ├── StatDb.java, StatService.java, StatListener.java
-│   ├── StatCommand.java          # /stats, /leaderboard
-│   └── RoundHistoryDb.java
+│   ├── StatService.java, StatListener.java
+│   └── StatCommand.java          # /stats, /leaderboard
 └── Utils/
     ├── ScoreboardUtil.java
     └── ChatUtil.java             # Kill feed, death recap, killstreak callouts
 ```
 
+**No per-subsystem `Db` classes.** Every subsystem that needs persistence (`LoadoutService`, `StatService`, `RoundService`) calls into the shared `DatabaseManager` rather than owning its own `Db` class — see §5 for why.
+
 ---
 
 ## 5. Data Model / Database Schema (SQLite)
+
+**All persistence goes through a single `DatabaseManager`** — one class owns the SQLite connection to a single `data.db` file (stored in the plugin's data folder) for the entire plugin. There is no per-subsystem `Db` class (no `LoadoutPresetDb`, `StatDb`, `RoundHistoryDb`, etc.) — that's a deliberate departure from Trenched's one-`Db`-per-subsystem convention. `DatabaseManager` owns the connection lifecycle (open on enable, close on disable), schema creation/migration for every table below, and exposes query/update methods that `LoadoutService`, `StatService`, and `RoundService` call directly. Subsystem services still own their *logic*; they just don't own their *storage*.
 
 Two persistence tiers, matching the per-round-vs-persistent split from §1.1/§6:
 
@@ -225,10 +228,7 @@ vote:
   # gamemode weights/eligibility could be added here later if some modes should vote less often
 
 koth:
-  hill-point-pool:                      # candidate coordinates, one chosen at random per round
-    - {x: 0,   z: 0}
-    - {x: 40,  z: -20}
-    - {x: -30, z: 25}
+  # Hill coordinate pool lives in arena.yml (set via /arena addhillpoint) — map data, not tuning.
   capture-radius-blocks: 8
   points-per-second: 1
   score-threshold: 300                  # team score (accumulated hold-seconds × points-per-second) that ends the round
@@ -236,11 +236,7 @@ koth:
 
 domination:
   capture-point-count: 3
-  capture-point-pool:                    # superset; N are chosen per round from capture-point-count
-    - {x: 20, z: 20, name: "A"}
-    - {x: -20, z: 20, name: "B"}
-    - {x: 0, z: -30, name: "C"}
-    - {x: 35, z: -35, name: "D"}
+  # Named capture-point pool lives in arena.yml (set via /arena addcapturepoint) — map data.
   capture-radius-blocks: 6
   points-per-tick-per-zone: 1            # total round points/tick = zones_controlled * this value
   tick-interval-seconds: 1
@@ -292,7 +288,16 @@ ffa-spawns:                              # random surface spawn pool for FFA/Gun
   - {x: 10, y: 70, z: 40}
   - {x: -40, y: 68, z: -10}
   # ... N entries, populated via /arena addffaspawn
+
+hill-points:                             # KOTH pool, one chosen at random per round (/arena addhillpoint)
+  - {x: 0, y: 70, z: 0}
+
+capture-points:                          # Domination pool, N chosen per round (/arena addcapturepoint <name>)
+  A: {x: 20, y: 70, z: 20}
+  B: {x: -20, y: 70, z: 20}
 ```
+
+Locations are written using Bukkit's built-in `Location` serialization (`==: org.bukkit.Location`, world/x/y/z/yaw/pitch keys) rather than the hand-rolled maps sketched above — same data, no parser to maintain, and arena.yml isn't hand-edited anyway.
 
 Keeping `arena.yml` separate from `config.yml` matters: `config.yml` is tuning you hand-edit and diff in version control; `arena.yml` is map data you set by standing in the world and running a command — different audiences, different edit patterns.
 
@@ -581,7 +586,7 @@ You want a slot reserved for this, not a built system. Recommended shape for who
 
 - A **separate** currency from the per-round combat points — e.g. `player_stats` gains a `persistent_currency` column, earned in small amounts per round played/won (not per kill — keep it slow and cosmetic-scale).
 - Spend surface should be **cosmetic-only** (weapon skins/particle trails/kill-effects/name colors) — never combat stats, tiers, or anything that touches the per-life loadout economy. Mixing the two currencies' spend surfaces is exactly the pay-to-win trap the per-round reset was designed to avoid; keep them walled off.
-- No GUI/shop design is specified here — intentionally deferred. When it's time to build this, it's a new `ProgressionLogic` package following the same `Db`/`Service`/`Gui` pattern as everything else in this doc.
+- No GUI/shop design is specified here — intentionally deferred. When it's time to build this, it's a new `ProgressionLogic` package following the same `Service`/`Gui` pattern as everything else in this doc, storing its data via `DatabaseManager` like every other subsystem.
 
 ### 12.2 Other deferred items
 
@@ -607,7 +612,7 @@ Not a hard requirement, but a sane milestone sequence for an implementer to avoi
 2. **Team + spawn + spectator core**: `TeamService`, fixed spawns, spawn protection, in-round death spectator (locked-radius). No combat yet.
 3. **Loadout shop + WeaponMechanics integration**: `LoadoutService`, `WeaponFactory`, builder GUI, per-life point economy. Validate WM item generation and damage attribution here — this is the highest-risk integration point.
 4. **TDM end-to-end**: simplest gamemode, exercises combat + points + round-end threshold + the full end-of-round sequence (§7.9) including free-roam spectator and the vote GUI (even if only TDM is voteable initially).
-5. **Loadout presets**: `LoadoutPresetDb`, presets GUI, active-loadout auto-equip on respawn.
+5. **Loadout presets**: `DatabaseManager` preset tables/queries, presets GUI, active-loadout auto-equip on respawn.
 6. **KOTH**, then **Domination** (shares most of KOTH's capture-point plumbing — build KOTH first, generalize into `CapturePoint` for Domination rather than writing Domination from scratch).
 7. **FFA**, then **Gun Game** (FFA proves out random-spawn logic that Gun Game also needs).
 8. **Stats/leaderboards**, **QoL polish pass** (§11 items 3-8), **block-revert hardening** (§7.3's `/arena hardreset` safety net).
