@@ -7,6 +7,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.flintstqne.skirmish.ConfigManager;
 import org.flintstqne.skirmish.MapLogic.ArenaConfig;
+import org.flintstqne.skirmish.MapLogic.WorldManager;
 
 import java.util.EnumMap;
 import java.util.HashMap;
@@ -23,12 +24,14 @@ public final class TeamService implements Listener {
 
     private final ConfigManager config;
     private final ArenaConfig arena;
+    private final WorldManager worlds;
     private final Map<UUID, Team> assignments = new HashMap<>();
     private final Random random = new Random();
 
-    public TeamService(ConfigManager config, ArenaConfig arena) {
+    public TeamService(ConfigManager config, ArenaConfig arena, WorldManager worlds) {
         this.config = config;
         this.arena = arena;
+        this.worlds = worlds;
     }
 
     public Team getTeam(Player player) {
@@ -97,19 +100,33 @@ public final class TeamService implements Listener {
         assignments.clear();
     }
 
-    /** Random spawn for the player's team; falls back to the arena world spawn. */
+    /**
+     * Random spawn for the player's team, re-bound onto the live round world — arena.yml
+     * coordinates belong to the template, which is never played in (§7.3).
+     */
     public Location getSpawn(Player player) {
         Team team = getTeam(player);
-        if (team == null) return player.getWorld().getSpawnLocation();
-        List<Location> spawns = arena.getTeamSpawns(team.name());
-        if (spawns.isEmpty()) return player.getWorld().getSpawnLocation();
-        return spawns.get(random.nextInt(spawns.size()));
+        List<Location> spawns = team == null ? List.of() : arena.getTeamSpawns(team.name());
+        if (spawns.isEmpty()) return defaultSpawn(player);
+        Location spawn = worlds.toActiveWorld(spawns.get(random.nextInt(spawns.size())));
+        return spawn == null ? defaultSpawn(player) : spawn;
     }
 
-    /** All configured team spawns — used for the spawn-protection zones (§7.7). */
+    private Location defaultSpawn(Player player) {
+        return worlds.hasActiveWorld()
+                ? worlds.getActiveWorld().getSpawnLocation()
+                : player.getWorld().getSpawnLocation();
+    }
+
+    /** All configured team spawns, on the live round world — used by spawn zones (§7.7). */
     public List<Location> getAllTeamSpawns() {
         List<Location> all = new java.util.ArrayList<>();
-        for (Team t : Team.values()) all.addAll(arena.getTeamSpawns(t.name()));
+        for (Team t : Team.values()) {
+            for (Location spawn : arena.getTeamSpawns(t.name())) {
+                Location bound = worlds.toActiveWorld(spawn);
+                if (bound != null) all.add(bound);
+            }
+        }
         return all;
     }
 

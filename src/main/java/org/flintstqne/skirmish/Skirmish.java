@@ -15,6 +15,12 @@ import org.flintstqne.skirmish.LoadoutLogic.LoadoutService;
 import org.flintstqne.skirmish.LoadoutLogic.WeaponFactory;
 import org.flintstqne.skirmish.MapLogic.ArenaAdminCommand;
 import org.flintstqne.skirmish.MapLogic.ArenaConfig;
+import org.flintstqne.skirmish.MapLogic.WorldManager;
+import org.flintstqne.skirmish.RoundLogic.EndRoundSequence;
+import org.flintstqne.skirmish.RoundLogic.RoundCommand;
+import org.flintstqne.skirmish.RoundLogic.RoundService;
+import org.flintstqne.skirmish.VoteLogic.VoteGui;
+import org.flintstqne.skirmish.VoteLogic.VoteService;
 import org.flintstqne.skirmish.TeamLogic.TeamCommand;
 import org.flintstqne.skirmish.TeamLogic.TeamSelectGui;
 import org.flintstqne.skirmish.TeamLogic.TeamService;
@@ -32,6 +38,9 @@ public final class Skirmish extends JavaPlugin {
     private DeathSpectatorService deathSpectatorService;
     private LoadoutCatalog loadoutCatalog;
     private LoadoutService loadoutService;
+    private WorldManager worldManager;
+    private VoteService voteService;
+    private RoundService roundService;
 
     @Override
     public void onEnable() {
@@ -51,7 +60,13 @@ public final class Skirmish extends JavaPlugin {
 
         loadArenaWorld();
 
-        teamService = new TeamService(configManager, arenaConfig);
+        worldManager = new WorldManager(this, arenaConfig);
+        int swept = worldManager.sweepOrphanWorlds();
+        if (swept > 0) {
+            getLogger().info("Swept " + swept + " round world(s) left over from a crashed run.");
+        }
+
+        teamService = new TeamService(configManager, arenaConfig, worldManager);
         spawnProtectionManager = new SpawnProtectionManager(configManager, teamService);
         deathSpectatorService = new DeathSpectatorService(this, configManager, teamService, spawnProtectionManager);
 
@@ -61,7 +76,14 @@ public final class Skirmish extends JavaPlugin {
         loadoutCatalog.load(catalogFile);
         loadoutService = new LoadoutService(configManager, loadoutCatalog, new WeaponFactory(this));
         LoadoutBuilderGui loadoutBuilderGui = new LoadoutBuilderGui(loadoutService);
-        CombatListener combatListener = new CombatListener(configManager, teamService, loadoutService);
+
+        voteService = new VoteService(configManager.getVoteableGamemodes(), RoundService.PLAYABLE);
+        roundService = new RoundService(this, configManager, teamService, loadoutService,
+                spawnProtectionManager, deathSpectatorService, worldManager);
+        roundService.setEndRoundSequence(new EndRoundSequence(this, configManager, roundService,
+                deathSpectatorService, voteService, new VoteGui(voteService)));
+
+        CombatListener combatListener = new CombatListener(configManager, teamService, loadoutService, roundService);
 
         getServer().getPluginManager().registerEvents(teamService, this);
         getServer().getPluginManager().registerEvents(spawnProtectionManager, this);
@@ -72,12 +94,15 @@ public final class Skirmish extends JavaPlugin {
         setExecutor("arena", new ArenaAdminCommand(arenaConfig));
         setExecutor("team", new TeamCommand(new TeamSelectGui(teamService, configManager)));
         setExecutor("loadout", new LoadoutCommand(loadoutService, loadoutBuilderGui));
+        setExecutor("round", new RoundCommand(roundService));
 
         getLogger().info("[Skirmish] Enabled");
     }
 
     @Override
     public void onDisable() {
+        // Dispose the round world copy — the template is never touched (design doc §7.3).
+        if (roundService != null) roundService.shutdown();
         if (deathSpectatorService != null) deathSpectatorService.stopAll();
         if (databaseManager != null) databaseManager.close();
         getLogger().info("[Skirmish] Disabled");
@@ -93,9 +118,12 @@ public final class Skirmish extends JavaPlugin {
     }
 
     /**
-     * The arena is one long-lived world kept loaded for the plugin's lifetime (design doc §7.3).
-     * Never generates a missing world — a hand-built arena that isn't on disk is a setup mistake,
-     * not something to paper over with a fresh empty world.
+     * Loads the arena <em>template</em> — the pristine world admins build in and point
+     * {@code /arena} at. Rounds never run here; each one plays in a throwaway copy made by
+     * {@link WorldManager} (design doc §7.3).
+     *
+     * Never generates a missing world — a hand-built arena that isn't on disk is a setup
+     * mistake, not something to paper over with a fresh empty world.
      */
     private void loadArenaWorld() {
         String name = arenaConfig.getWorldName();
@@ -150,5 +178,17 @@ public final class Skirmish extends JavaPlugin {
 
     public LoadoutService getLoadoutService() {
         return loadoutService;
+    }
+
+    public RoundService getRoundService() {
+        return roundService;
+    }
+
+    public VoteService getVoteService() {
+        return voteService;
+    }
+
+    public WorldManager getWorldManager() {
+        return worldManager;
     }
 }

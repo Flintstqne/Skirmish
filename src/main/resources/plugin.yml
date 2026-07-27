@@ -2,7 +2,9 @@ name: Skirmish
 version: '1'
 main: org.flintstqne.skirmish.Skirmish
 api-version: '1.21'
-depend: [WeaponMechanics, InventoryFramework]
+# InventoryFramework is shaded and relocated into this jar (see pom.xml), so it must NOT be
+# declared here — requiring the standalone IF plugin would block enabling for no reason.
+depend: [WeaponMechanics]
 
 commands:
   loadout:
@@ -14,6 +16,10 @@ commands:
   arena:
     description: Arena map-data setup (spawns, hill points, capture points, boundary)
     usage: /arena <setspawn|addffaspawn|addhillpoint|addcapturepoint|setboundary|setworld>
+    permission: skirmish.admin
+  round:
+    description: Manually start or end a round, overriding the vote-driven flow
+    usage: /round <start <mode>|end|status>
     permission: skirmish.admin
 
 permissions:

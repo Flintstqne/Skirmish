@@ -101,7 +101,7 @@ src/main/java/org/flintstqne/skirmish/
 │   └── TeamCommand.java          # /team — join or reopen GUI mid-round
 ├── MapLogic/
 │   ├── ArenaConfig.java          # Spawn points, hill/capture-point pools, boundaries (arena.yml)
-│   ├── BlockChangeTracker.java   # In-memory diff + revert (see §8.3)
+│   ├── WorldManager.java         # Per-round world clone/dispose + crash sweep (see §7.3)
 │   └── ArenaAdminCommand.java    # In-game location-setting tools
 ├── LoadoutLogic/
 │   ├── LoadoutService.java       # Point economy, category/tier catalog, equip logic
@@ -346,18 +346,49 @@ WAITING (pre-round, loadout selection open, players in spawn-protected bases)
 
 ### 7.3 Map Persistence & Revert
 
-The arena is one persistent world (`arena.yml`'s `world-name`), loaded once on plugin enable and kept loaded — **not** regenerated per round the way Trenched creates a new timestamped world (that pattern exists for procedural-terrain war rounds; it's the wrong tool for a small fixed arena run every 30 minutes).
+**Approach: one throwaway world per round.**
 
-**Approach: in-memory block-change diff + revert.**
+> Superseded the original design. This section previously specified a single long-lived arena
+> world reverted by an in-memory block diff (`BlockChangeTracker`). That was replaced because
+> the diff could not survive a crash — the arena stayed damaged until fixed by hand. The
+> world-per-round approach makes crash recovery fall out of the design instead of being a
+> feature, and it deleted the tracker outright. Same pattern SiegeGame uses.
 
-- `BlockChangeTracker` listens to `BlockPlaceEvent`, `BlockBreakEvent`, and explosion-derived block changes during `ACTIVE`.
-- On the *first* change to a given coordinate this round, snapshot the original `BlockData` into a `Map<Location, BlockData>`.
-- At round end (`ENDING`), iterate the map and restore every entry, then clear it.
-- This is a direct, lighter-weight descendant of Trenched's `PlacedBlockTracker` pattern — same idea (track what changed, act on it later), but **no SQLite table**, because the diff only needs to survive one 30-minute round, not a multi-day round that might span a server restart.
+The world named in `arena.yml` is a pristine **template**. It is loaded on enable so admins can
+build in it and point `/arena` at it, but **rounds never run there.**
 
-**Known tradeoff:** a server crash mid-round loses the diff, and the arena stays damaged until manually fixed (or an admin `/arena revert` command that re-pastes a static baseline — see below). Acceptable for a showcase gamemode; call this out explicitly to whoever picks up implementation so it's a conscious choice, not an oversight.
+`WorldManager` owns the lifecycle:
 
-**Recommended safety net:** keep one static reference copy of the arena's undamaged block region (a simple structure block/NBT region snapshot taken once at map-setup time, *not* per round) purely as a manual `/arena hardreset` fallback if the diff-based revert ever gets out of sync — not the primary mechanism, just an escape hatch. Don't add a WorldEdit/FAWE dependency for this; a single saved region snapshot is a one-time, small-scope need.
+1. **Round start** — copy the template folder to `skirmish_round_<n>`, skipping `session.lock`,
+   `uid.dat`, and per-player junk (`playerdata`, `stats`, `advancements`). Copying `uid.dat`
+   would give two worlds the same UUID, which breaks Bukkit. The copy runs off the main thread;
+   `Bukkit.createWorld` then loads it on the main thread.
+2. **Configure** — `setAutoSave(false)` above all: the copy is disposable, so it should never
+   write back. Plus round-appropriate gamerules (immediate respawn, no mob spawning, no daylight
+   or weather cycle, no death messages).
+3. **Round end** — the next round's world is promoted; the one it replaces is unloaded with
+   `Bukkit.unloadWorld(world, false)` and its folder deleted, after a delay so nobody is still
+   inside it.
+4. **Disable** — the active round world is disposed the same way. A clean shutdown leaves only
+   the template.
+
+**Crash recovery.** Round worlds are all prefixed `skirmish_round_`, so any folder with that
+prefix at startup is a leftover from a run that died. `WorldManager.sweepOrphanWorlds()` deletes
+them on enable. This also prevents a stale folder from colliding with a fresh round — the bug
+SiegeGame's in-memory counter has, since its counter resets to 1 every boot.
+
+Nothing is reverted because nothing durable is ever damaged. This covers everything a block diff
+would have missed too: dropped items, fire spread, liquid flow, entities.
+
+**Locations are world-bound.** `arena.yml` stores coordinates against the template, but the world
+a round plays in changes every time. `WorldManager.toActiveWorld(Location)` re-binds a stored
+location onto the live round world, and every consumer of arena coordinates (team spawns, spawn
+zones, and later the hill/capture pools) must go through it. Reading a stored location directly
+would silently point at the template.
+
+**Costs, accepted:** `Bukkit.createWorld` blocks the main thread, so a large template means a
+visible hitch at round start — keep the template trimmed to the arena region. Two copies exist on
+disk briefly during handover. `/arena hardreset` is no longer needed and is dropped from §10.
 
 ### 7.4 Points / Currency System
 
@@ -427,7 +458,7 @@ Exact flow (already agreed in design discussion — reproduced here as the autho
 3. **Winner announcement**: title/subtitle (`"<TEAM> WINS!"` / `"Final Score: X – Y"`, or player name for FFA/Gun Game), held for `end-round.winner-announcement-seconds`.
 4. **Vote GUI** (§10, mockup #4) auto-opens for every player, live tallies, votes changeable until countdown hits 0.
 5. **Countdown title**: `"Next round in: Xs"`, ticking down for `end-round.next-round-countdown-seconds`, vote GUI stays interactable throughout.
-6. **World revert**: `BlockChangeTracker` restores all diffed blocks (§7.3).
+6. **World handover**: the next round clones a fresh world from the template; the world just played in is unloaded without saving and deleted (§7.3). There is no revert step.
 7. **New round starts** with the winning-vote `GamemodeType`; players return to `WAITING` (spawn-protected, loadout selection open) at their (re-picked, if teams reset per mode) spawns.
 
 ### 7.10 Stats & Leaderboards
@@ -574,7 +605,6 @@ Click to vote, click again to change vote, glint on your current pick.
 | `/arena addhillpoint` | Admin | Adds current location to the KOTH hill pool |
 | `/arena addcapturepoint <name>` | Admin | Adds current location + name to the Domination pool |
 | `/arena setboundary <corner1\|corner2>` | Admin | Sets arena bounding box |
-| `/arena hardreset` | Admin | Manual fallback revert (see §7.3 safety net) |
 | `/round start <mode>` / `/round end` | Admin | Manual override of the normal vote-driven flow, for testing |
 | `/admin points give/reset <player> <amount>` | Admin | Debug/testing aid, mirrors Trenched's admin merit commands |
 
@@ -640,5 +670,5 @@ Not a hard requirement, but a sane milestone sequence for an implementer to avoi
 5. **Loadout presets**: `DatabaseManager` preset tables/queries, presets GUI, active-loadout auto-equip on respawn.
 6. **KOTH**, then **Domination** (shares most of KOTH's capture-point plumbing — build KOTH first, generalize into `CapturePoint` for Domination rather than writing Domination from scratch).
 7. **FFA**, then **Gun Game** (FFA proves out random-spawn logic that Gun Game also needs).
-8. **Stats/leaderboards**, **QoL polish pass** (§11 items 3-8), **block-revert hardening** (§7.3's `/arena hardreset` safety net).
+8. **Stats/leaderboards**, **QoL polish pass** (§11 items 3-8).
 9. Anything from §12 (Future Work) only after the above is solid.

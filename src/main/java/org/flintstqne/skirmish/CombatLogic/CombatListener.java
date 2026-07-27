@@ -12,6 +12,7 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
 import org.flintstqne.skirmish.ConfigManager;
 import org.flintstqne.skirmish.LoadoutLogic.LoadoutService;
+import org.flintstqne.skirmish.RoundLogic.RoundService;
 import org.flintstqne.skirmish.TeamLogic.TeamService;
 
 /**
@@ -30,11 +31,13 @@ public final class CombatListener implements Listener {
     private final ConfigManager config;
     private final TeamService teams;
     private final LoadoutService loadouts;
+    private final RoundService rounds;
 
-    public CombatListener(ConfigManager config, TeamService teams, LoadoutService loadouts) {
+    public CombatListener(ConfigManager config, TeamService teams, LoadoutService loadouts, RoundService rounds) {
         this.config = config;
         this.teams = teams;
         this.loadouts = loadouts;
+        this.rounds = rounds;
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
@@ -61,6 +64,7 @@ public final class CombatListener implements Listener {
 
         int points = config.getKillPoints();
         loadouts.addPoints(killer, points);
+        rounds.recordKill(killer);
         killer.sendActionBar(Component.text(
                 "Killed " + victim.getName() + "  +" + points + " pts", NamedTextColor.GREEN));
     }
