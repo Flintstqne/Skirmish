@@ -59,7 +59,7 @@ public final class RoundCommand implements CommandExecutor, TabCompleter {
                     sender.sendMessage(Component.text("No round is running.", NamedTextColor.RED));
                     return true;
                 }
-                rounds.endRound(null);
+                rounds.endRoundNow();
                 sender.sendMessage(Component.text("Ending round.", NamedTextColor.GREEN));
             }
             case "status" -> sender.sendMessage(Component.text(

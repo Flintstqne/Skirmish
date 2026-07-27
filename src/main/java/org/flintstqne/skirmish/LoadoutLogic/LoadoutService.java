@@ -46,10 +46,6 @@ public final class LoadoutService implements Listener {
         this.currentGamemode = gamemode;
     }
 
-    public GamemodeType getCurrentGamemode() {
-        return currentGamemode;
-    }
-
     public boolean isLoadoutsEnabled() {
         return config.isLoadoutsEnabled(currentGamemode);
     }

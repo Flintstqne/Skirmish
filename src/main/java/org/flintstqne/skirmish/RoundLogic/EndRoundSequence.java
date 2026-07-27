@@ -36,14 +36,19 @@ public final class EndRoundSequence {
         this.voteGui = voteGui;
     }
 
-    public void run(GamemodeType mode, Team winner, int redScore, int blueScore) {
+    /**
+     * @param teamWinner   the winning team for team modes, null for a draw
+     * @param playerWinner the winning player for individual modes (FFA, §8.4), null for a draw
+     */
+    public void run(GamemodeType mode, Team teamWinner, Player playerWinner, int redScore, int blueScore) {
         // Step 2: everyone — alive or already dead — goes to free-roam spectator.
         for (Player player : plugin.getServer().getOnlinePlayers()) {
             spectators.stop(player);
             if (config.isFreeRoamSpectator()) spectators.startFreeRoam(player);
         }
 
-        announceWinner(winner, redScore, blueScore);
+        announceWinner(mode, teamWinner, playerWinner, redScore, blueScore);
+        announceMvp();
         votes.reset();
 
         int announceSeconds = config.getWinnerAnnouncementSeconds();
@@ -51,17 +56,37 @@ public final class EndRoundSequence {
                 () -> startVote(config.getNextRoundCountdownSeconds()), announceSeconds * 20L);
     }
 
-    private void announceWinner(Team winner, int redScore, int blueScore) {
-        Component title = winner == null
-                ? Component.text("DRAW", NamedTextColor.YELLOW)
-                : Component.text(winner.getDisplayName().toUpperCase() + " WINS!", winner.getColor());
-        Component subtitle = Component.text("Final Score: " + redScore + " – " + blueScore, NamedTextColor.WHITE);
+    private void announceWinner(GamemodeType mode, Team teamWinner, Player playerWinner, int redScore, int blueScore) {
+        Component title;
+        Component subtitle;
+        if (mode.usesTeams()) {
+            title = teamWinner == null
+                    ? Component.text("DRAW", NamedTextColor.YELLOW)
+                    : Component.text(teamWinner.getDisplayName().toUpperCase() + " WINS!", teamWinner.getColor());
+            subtitle = Component.text("Final Score: " + redScore + " – " + blueScore, NamedTextColor.WHITE);
+        } else {
+            title = playerWinner == null
+                    ? Component.text("DRAW", NamedTextColor.YELLOW)
+                    : Component.text(playerWinner.getName().toUpperCase() + " WINS!", NamedTextColor.GOLD);
+            subtitle = Component.text(
+                    "Final Score: " + (playerWinner == null ? 0 : rounds.getPlayerScore(playerWinner)) + " kills",
+                    NamedTextColor.WHITE);
+        }
 
         Title card = Title.title(title, subtitle, Title.Times.times(
                 Duration.ofMillis(300),
                 Duration.ofSeconds(Math.max(1, config.getWinnerAnnouncementSeconds())),
                 Duration.ofMillis(500)));
         plugin.getServer().getOnlinePlayers().forEach(player -> player.showTitle(card));
+    }
+
+    /** MVP/top-fragger recap (§11 item 7) — most kills this round, regardless of gamemode. */
+    private void announceMvp() {
+        Player mvp = rounds.getMvp();
+        if (mvp == null) return;
+        Component message = Component.text(
+                "MVP: " + mvp.getName() + " (" + rounds.getRoundKills(mvp) + " kills)", NamedTextColor.AQUA);
+        plugin.getServer().getOnlinePlayers().forEach(player -> player.sendMessage(message));
     }
 
     /** Steps 4-5: vote GUI open for everyone, ticking countdown, votes changeable throughout. */

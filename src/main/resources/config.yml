@@ -5,6 +5,11 @@
 round:
   duration-minutes: 30
   score-threshold-ends-round: true
+  # Countdown after players are placed/geared but before the round timer/scoring starts —
+  # keep >= spawn-protection.invulnerability-seconds, or players could start trading damage
+  # before the countdown visually ends (a fresh invuln grant still lands exactly when the
+  # round goes ACTIVE, but the one granted at placement could expire mid-countdown first).
+  warmup-seconds: 10
 
 team:
   imbalance-lock-ratio: 1.5
@@ -27,6 +32,27 @@ points:
 death:
   spectator-lock-radius-blocks: 50
   respawn-seconds: 10
+  show-death-recap: true   # tells a dying player who killed them and with what (§11 item 4)
+
+kill-feed:
+  enabled: true
+  # Broadcast to everyone on every kill (§11 item 3). The per-killer "+N pts" actionbar
+  # (points.kill) is separate and stays even if this is off.
+
+killstreaks:
+  enabled: true
+  bonus-points-enabled: false   # per-life points are already a snowball risk — off by default
+  bonus-points-per-threshold: 5
+  # Streak length -> callout name, broadcast to everyone when a player reaches it.
+  thresholds:
+    3: "Killing Spree"
+    5: "Rampage"
+    7: "Dominating"
+    10: "Unstoppable"
+
+scoreboard:
+  enabled: true
+  update-interval-ticks: 20
 
 end-round:
   free-roam-spectator: true
@@ -59,6 +85,9 @@ domination:
   capture-radius-blocks: 6
   points-per-tick-per-zone: 1
   tick-interval-seconds: 1
+  score-threshold: 300
+  particle-beam: DUST
+  beam-height: 20
 
 tdm:
   score-threshold: 75
@@ -69,14 +98,17 @@ ffa:
 
 gungame:
   score-threshold-is-tier-completion: true
+  # Each entry is a WeaponMechanics weapon title (the top-level key of a WM weapon .yml),
+  # generated directly via WeaponMechanicsAPI.generateWeapon — Gun Game has no loadout shop,
+  # so this bypasses loadout-catalog.yml entirely. The LAST entry is always the knife tier.
   weapon-ladder:
-    - PISTOL
-    - SMG
-    - SHOTGUN
-    - AR
-    - SNIPER
-    - LMG
-    - KNIFE
+    - Uzi
+    - "357_Magnum"
+    - Origin_12
+    - AK_47
+    - Kar98k
+    - MG34
+    - Combat_Knife
   demote-on-knife-death: true
   final-knife-kill-wins-instantly: true
 

@@ -18,9 +18,8 @@ import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.flintstqne.skirmish.ConfigManager;
-import org.flintstqne.skirmish.LoadoutLogic.LoadoutPresetService;
+import org.flintstqne.skirmish.RoundLogic.RoundService;
 import org.flintstqne.skirmish.Skirmish;
-import org.flintstqne.skirmish.TeamLogic.TeamService;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -40,18 +39,22 @@ public final class DeathSpectatorService implements Listener {
 
     private final Skirmish plugin;
     private final ConfigManager config;
-    private final TeamService teams;
-    private final SpawnProtectionManager spawnProtection;
-    private final LoadoutPresetService loadoutPresets;
     private final Map<UUID, State> spectating = new HashMap<>();
+    private RoundService rounds;
 
-    public DeathSpectatorService(Skirmish plugin, ConfigManager config, TeamService teams,
-                                 SpawnProtectionManager spawnProtection, LoadoutPresetService loadoutPresets) {
+    public DeathSpectatorService(Skirmish plugin, ConfigManager config) {
         this.plugin = plugin;
         this.config = config;
-        this.teams = teams;
-        this.spawnProtection = spawnProtection;
-        this.loadoutPresets = loadoutPresets;
+    }
+
+    /**
+     * Set post-construction — RoundService takes a DeathSpectatorService, so this breaks the
+     * cycle. Once set, respawn goes through {@link RoundService#preparePlayer}, which is
+     * gamemode-aware about spawn location (team spawn vs. FFA random point, §8.4); without
+     * it, respawn falls back to a fixed team spawn only, which is wrong for FFA.
+     */
+    public void setRoundService(RoundService rounds) {
+        this.rounds = rounds;
     }
 
     public boolean isSpectating(Player player) {
@@ -71,11 +74,10 @@ public final class DeathSpectatorService implements Listener {
         plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
             if (!player.isOnline() || !isSpectating(player)) return;
             stop(player);
-            player.teleport(teams.getSpawn(player));
             // Gear goes back on here, not at the fake respawn above — while spectating,
             // apply() strips the inventory so a dead player visibly has nothing (see below).
-            loadoutPresets.onRespawn(player);
-            spawnProtection.grantInvulnerability(player);
+            // rounds is always set by Skirmish.onEnable() before any player can die.
+            rounds.preparePlayer(player);
         }, seconds * 20L);
     }
 

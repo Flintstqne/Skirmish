@@ -86,9 +86,10 @@ public final class TeamService {
     }
 
     /**
-     * Voluntary switch to the short team for the swap incentive bonus (§7.2).
-     * ponytail: bonus points aren't granted yet — the per-life economy lands in
-     * LoadoutService (milestone 3); award {@code config.getSwapIncentivePoints()} there.
+     * Voluntary switch to the short team. Just the assignment — the swap incentive bonus
+     * (§7.2, {@code config.getSwapIncentivePoints()}) is awarded by the caller
+     * ({@link TeamSelectGui}) on a successful swap, since that's where the amount is
+     * already read to render the GUI button.
      */
     public boolean swapToShortTeam(Player player) {
         Team target = getShortTeam();

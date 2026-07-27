@@ -102,6 +102,7 @@ src/main/java/org/flintstqne/skirmish/
 ├── MapLogic/
 │   ├── ArenaConfig.java          # Spawn points, hill/capture-point pools, boundaries (arena.yml)
 │   ├── WorldManager.java         # Per-round world clone/dispose + crash sweep (see §7.3)
+│   ├── RandomSpawnSelector.java  # Random spawn w/ min-distance, for FFA (and later Gun Game)
 │   └── ArenaAdminCommand.java    # In-game location-setting tools
 ├── LoadoutLogic/
 │   ├── LoadoutService.java       # Point economy, category/tier catalog, equip logic
@@ -117,10 +118,11 @@ src/main/java/org/flintstqne/skirmish/
 │   ├── SpawnProtectionManager.java
 │   └── DeathSpectatorService.java # Locked-radius (death) + free-roam (end-round) spectator
 ├── ObjectiveLogic/
-│   ├── HillObjective.java        # KOTH
-│   ├── CapturePoint.java         # Domination (shared base with HillObjective)
-│   ├── ObjectiveUIManager.java   # Compass HUD, locator-bar icons, beacon beams
-│   └── ObjectiveParticleManager.java
+│   ├── HillObjective.java        # KOTH — hill selection, contest tick
+│   ├── CapturePoint.java         # One Domination zone — reuses HillObjective.resolveHolder
+│   ├── DominationObjective.java  # Domination round owner — N CapturePoints, zone-tick scoring
+│   ├── ObjectiveUIManager.java   # Compass + boss-bar HUD, shared by KOTH and (later) Domination
+│   └── ObjectiveParticleManager.java # Ring (KOTH) + beam (Domination) particle shapes, shared
 ├── GunGameLogic/
 │   ├── GunGameService.java       # Tier ladder, promote/demote, knife-kill win
 │   └── GunGameListener.java
@@ -483,6 +485,26 @@ Exact flow (already agreed in design discussion — reproduced here as the autho
 
 Same shape as Trenched's `StatLogic`: async-batched writes, lifetime (`player_stats`) + per-round (`round_history`) tracking, `/stats` and `/leaderboard` commands. Categories are simpler than Trenched's 35 — kills, deaths, knife kills, objective points, rounds played/won, wins-by-mode. MVP/recap calc for the winner-announcement phase can reuse Trenched's weighted-formula approach (kills × N + objective points × M), tuned via config the same way.
 
+> **Implementation notes.**
+> - **"Async-batched" simplified to synchronous, per-event, main-thread** — the same way
+>   every other `DatabaseManager` caller in this plugin already writes (loadout presets
+>   included). Kills, deaths, and round-ends are low-frequency events, nothing like
+>   Domination's per-second tick; batching would solve a disk-I/O problem that doesn't exist
+>   at this scale, and true async writes would need cross-thread connection safety this
+>   project has never needed elsewhere. `StatService` documents this reasoning directly.
+> - **`objective_points` isn't wired up yet.** Crediting it correctly means `HillObjective`/
+>   `DominationObjective`'s tick loop tracking not just *whether* a team holds a zone but
+>   *which specific players* are standing in it — a real change to two already-built, tested
+>   classes. The column exists and `StatService.recordObjectivePoints` is ready to receive
+>   it; it's just never called yet, so it stays at 0 for everyone. Flagged rather than
+>   silently left undocumented — pick up if KOTH/Domination stats turn out to matter.
+> - **No MVP/recap formula.** `/stats` and `/leaderboard` are built; the end-of-round MVP
+>   calc for the winner-announcement screen (weighted kills + objective points) is `§11` QoL
+>   item 7, not part of this section, and hasn't been built.
+> - `wins_by_mode` is a hand-rolled flat-JSON (de)serializer (`StatLogic/WinsByMode`), not a
+>   JSON library — it only ever reads back what it wrote itself, so it doesn't need to handle
+>   arbitrary JSON, just the one shape.
+
 ### 7.11 Arena Boundary Rendering
 
 Added after initial implementation — `/arena set boundary <corner1|corner2>` originally only wrote coordinates to `arena.yml` with nothing reading them back. `MapLogic/ArenaBoundary` turns the two corners into an axis-aligned box on the live round world (re-bound the same way as team spawns, §7.3); `MapLogic/BorderWallRenderer` makes it real:
@@ -502,17 +524,47 @@ Added after initial implementation — `/arena set boundary <corner1|corner2>` o
 
 ### 8.1 King of the Hill (`KOTH`)
 
-- One hill point chosen at round start from `koth.hill-point-pool` (random).
+- One hill point chosen at round start from arena.yml's `hill-points` pool (random) — set via `/arena add hillpoint` (§6.2; this doc originally called it `koth.hill-point-pool` in config.yml, which was a doc gap fixed alongside the arena.yml/config.yml split — see §6.1's koth block).
 - Visualized with a circular particle ring (`koth.particle-ring`) at `capture-radius-blocks`, tinted team-color when a team holds it, neutral otherwise (matches the locator-bar/beacon visual language shared with Domination — see §8.6 shared implementation note below).
 - **Capture rule**: a team "holds" the hill when it has players present inside the radius and the enemy team does not (standard KOTH contest rule — if both teams are present, the hill is contested and scores for neither). While held uncontested, the holding team earns `points-per-second` **team score** (separate from personal point economy — this is what feeds the round-end threshold, not the loadout shop).
-- Round ends at `tdm`-style score threshold reuse — actually define KOTH's own threshold in config (`koth.score-threshold`) mirroring the others; add this key to §6.1 KOTH block if missing (flagged as a doc gap here — make sure implementation adds it).
+- Round ends at its own `koth.score-threshold` (§6.1), through the same generalized team-score/threshold path TDM's kill-count uses (`RoundService.addTeamScore`) — not a separate KOTH-only check.
+
+> **Implementation notes.**
+> - HUD uses `Player#setCompassTarget` (native, works on any Paper version) plus a boss bar
+>   showing holder/contested status and threshold progress, rather than a bespoke locator-bar
+>   renderer — the doc left the exact mechanism open pending API research (§8.2), and the
+>   compass needs none.
+> - `ObjectiveParticleManager` draws both shapes — `drawRing` (KOTH) and `drawBeam`
+>   (Domination, not yet wired to anything) — from pure, unit-tested offset geometry
+>   (`ringOffsets`/`beamHeights`). Each mode still owns its own particle type/color choice and
+>   passes them in; the shared class only knows how to lay out points in a circle or a column.
+> - Spectating players (dead, or free-roaming post-round) don't count as "present" for the
+>   contest check — `DeathSpectatorService.isSpectating` gates it, since Skirmish's spectator
+>   state is ADVENTURE-mode-with-flight, not vanilla `SPECTATOR`, so gamemode alone can't tell them apart from a live player.
 
 ### 8.2 Domination (`DOMINATION`)
 
-- `capture-point-count` points selected at round start from `capture-point-pool` (superset, for variety across rounds on the same map).
+- `capture-point-count` points selected at round start from arena.yml's named `capture-points` pool (superset, for variety across rounds on the same map) — set via `/arena add capturepoint <name>` (same arena.yml/config.yml split as KOTH's hill pool, §8.1).
 - Each point independently contestable/capturable the same way as KOTH's hill (present + uncontested = capture progress; fully neutral → team color once captured).
 - **Scoring**: `points-per-tick = number_of_zones_controlled × points-per-tick-per-zone`, evaluated every `tick-interval-seconds`. This is the confirmed "more zones = faster score, but also a bigger comeback if you lose them" dynamic — the whole point of Domination as a mode.
 - **Visuals**: each point shows on the locator/waypoint bar (bossbar or vanilla locator UI, whichever the target Paper version's API supports cleanly) *and* a vertical beacon-beam-style particle column, both tinted neutral/red/blue matching current ownership. Shared rendering code between KOTH and Domination (`ObjectiveUIManager`) — don't duplicate the particle/beacon logic per gamemode class.
+
+> **Implementation notes.**
+> - Built exactly as instructed from KOTH, per §14's build order — but *not* as a shared base
+>   class. `CapturePoint` (one zone: location, current holder, per-tick contest resolution) is
+>   its own small class that reuses `HillObjective.resolveHolder` directly for the actual
+>   present/uncontested rule, since that rule is identical for one hill or N independent zones.
+>   `DominationObjective` is the round-lifecycle owner — picks N points from the pool each
+>   round, runs the `tick-interval-seconds` loop, sums zones-controlled per team, and scores —
+>   playing the same role `HillObjective` plays for KOTH, just over a list instead of one point.
+> - `ObjectiveUIManager` (HUD) and `ObjectiveParticleManager.drawBeam` (the vertical column,
+>   built during KOTH specifically so this moment would need zero new shared code) are reused
+>   unchanged, exactly as intended.
+> - The HUD's compass anchors on the first of the N chosen zones — a single compass can't
+>   usefully point at "whichever zone is nearest," which would need per-player dynamic
+>   tracking. Not built; revisit if it turns out to matter.
+> - New config: `domination.particle-beam` (mirrors `koth.particle-ring`) and
+>   `domination.beam-height`, neither of which the original doc specified.
 
 ### 8.3 Team Deathmatch (`TDM`)
 
@@ -525,6 +577,25 @@ Added after initial implementation — `/arena set boundary <corner1|corner2>` o
 - Individual score = kills. First to `ffa.score-threshold` wins; winner announcement uses their name, not a team.
 - Loadouts: **enabled.** `gamemode.ffa.loadouts-enabled: true` — FFA uses the full loadout shop (§7.5) exactly like TDM/KOTH/Domination, respecting the same per-life point economy and active-preset auto-equip on respawn. Only `GUN_GAME` sets this flag to `false`.
 
+> **Implementation notes.**
+> - `GamemodeType.usesTeams()` is the switch everything else keys off: `RoundService` now
+>   carries a parallel `Map<UUID, Integer>` score track alongside the team one, with the same
+>   shape (`addPlayerScore`/threshold-check/`endRoundForPlayer`) as `addTeamScore`/`endRound` —
+>   two tracks, not one track awkwardly forced to represent both team and individual play.
+>   `EndRoundSequence.run` takes both a nullable team winner and a nullable player winner and
+>   renders whichever one the gamemode actually uses.
+> - `MapLogic/RandomSpawnSelector` (new, and reusable for Gun Game later) picks an FFA spawn
+>   point that clears `min-spawn-distance-from-players` from everyone currently in the arena,
+>   falling back to a random pick if nothing clears it. `RoundService.preparePlayer` calls it
+>   instead of `TeamService.getSpawn` whenever the gamemode is teamless.
+> - `TeamEnforcer` and `DeathSpectatorService`'s post-death respawn both route through
+>   `RoundService` (via a post-construction setter, breaking the same constructor cycle
+>   `HillObjective`/`EndRoundSequence` already use) — in a teamless gamemode they skip the
+>   forced team-select GUI and team-spawn teleport entirely, going straight through
+>   `RoundService.preparePlayer` so respawns actually land on a random FFA point.
+> - `/team` is now blocked in teamless gamemodes, the same way `/loadout` blocks itself when
+>   a gamemode has no loadout shop.
+
 ### 8.5 Gun Game (`GUN_GAME`)
 
 FFA-structured (no teams, random spawns), no loadout shop — driven entirely by `gungame.weapon-ladder`.
@@ -536,6 +607,28 @@ FFA-structured (no teams, random spawns), no loadout shop — driven entirely by
 - **Death by gun (not knife)** → no tier change; player respawns at their current tier, per "dying leaves you where you are."
 - **Final tier = knife.** Landing the final knife kill (i.e., a kill *while already on the last ladder tier*) **wins the round instantly** — skip the normal threshold/timer end condition entirely, jump straight to the winner announcement (§7.9 step 3) with that player named.
 - `GunGameService` owns per-player ladder index (ephemeral, round-scoped — resets every round like everything else in this gamemode). `GunGameListener` hooks kill/death events and re-equips inventory on every tier change.
+
+> **Implementation notes.**
+> - `gungame.weapon-ladder` originally listed placeholder category names (`PISTOL`, `SMG`, …)
+>   that don't correspond to anything WeaponMechanics actually ships. Replaced with real,
+>   verified WM weapon titles from the installed 4.3.1 config: Uzi → 357_Magnum → Origin_12 →
+>   AK_47 → Kar98k → MG34 → Combat_Knife. Each tier is generated straight from its title via
+>   `WeaponMechanicsAPI.generateWeapon` (`WeaponFactory#createByTitle`, new — the existing
+>   `create(LoadoutCatalog.Entry)` needs a catalog entry Gun Game doesn't have and was never
+>   meant to), bypassing `loadout-catalog.yml` entirely — Gun Game has no shop, so there's
+>   nothing to look up.
+> - Kill attribution reuses the same `WeaponKillEntityEvent` `CombatListener` already listens
+>   to for TDM/FFA kill points — the event's weapon title is enough to tell a knife kill from
+>   a gun kill without a second WM event (no need for `WeaponMeleeHitEvent`). `CombatListener`
+>   itself skips its generic points-and-message path during Gun Game (no shop to spend points
+>   in, so awarding them would just be a confusing message) — `GunGameListener` owns the kill
+>   entirely for this mode.
+> - Reuses FFA's `RandomSpawnSelector` and `GamemodeType.usesTeams()` gating directly — Gun
+>   Game needed zero new spawn/team-skip code, exactly as intended by building it after FFA.
+> - Re-gearing on respawn goes through `RoundService.preparePlayer`'s existing gamemode
+>   branch (same slot that already chooses `LoadoutPresetService.onRespawn` vs. nothing) —
+>   Gun Game now claims that branch instead of leaving it empty, since its "loadout" is the
+>   ladder tier, not a preset.
 
 ---
 
@@ -667,6 +760,32 @@ Carried over from design discussion, minus hit markers/hit sounds (explicitly cu
 7. End-of-round recap screen (MVP/top-fragger, reusing `StatLogic`'s calc approach).
 8. Live vote GUI (§9.4) rather than chat-based voting.
 9. Loadout preset slots with one-click select (§7.6) — this *is* the kit-saving feature, not a bolt-on.
+
+> **Implementation notes.** Items 1, 2, 3, 4, 5, 7 built together in one pass (6, 8, 9 landed earlier
+> during KOTH/Domination/vote/preset work). Deviations from the sketch above:
+> - Item 1 (warm-up) lives inside `RoundService` itself, not a separate class — `beginRound` now
+>   transitions `WAITING` → a title countdown (`scheduleWarmupTick`) → `activateRound()`, which is
+>   what used to be the tail of `beginRound`. A fresh `spawnProtection.grantInvulnerability` grant
+>   fires at `activateRound()` on top of the one `preparePlayer` already gave at placement, so a
+>   warmup longer than `spawn-protection.invulnerability-seconds` can't leave a gap.
+> - Items 2 and 3/4 are `Utils/ScoreboardService` and `Utils/KillFeedUtil`, not `ScoreboardUtil`/
+>   `ChatUtil` — naming settled once the code existed. Kill feed is chat-only (no headshot/knife
+>   icon distinction — WM's `WeaponKillEntityEvent` already gives a weapon title, which is enough).
+>   No tab list — sidebar scoreboard only; item 2's "tab list" half was cut as scope beyond what a
+>   single sidebar already covers.
+> - Item 5 (killstreaks) is `Utils/KillstreakService` — a per-life `Map<UUID,Integer>` reset on
+>   `PlayerDeathEvent`, thresholds from `killstreaks.thresholds` in config.yml. Bonus points are
+>   config-gated and **off by default** — per-life points are already the designed snowball risk
+>   (§7.4), so streak bonuses default off rather than compounding it.
+> - Item 7 (MVP recap) is `RoundService.getMvp()`/`getRoundKills()` (most kills this round, tracked
+>   independently of team/objective score — reuses the same `pickLeader` tie-break as team/player
+>   leaders) plus one broadcast line in `EndRoundSequence.announceMvp()`, right after the winner title.
+> - Killstreak/kill-feed/death-recap/MVP tracking are wired into both `CombatListener.onWeaponKill`
+>   and `GunGameListener.onWeaponKill` — Gun Game has no shop points but still gets a kill feed,
+>   death recap, streak callouts, and counts toward MVP like every other mode.
+> - Untested on a live server — same caveat as every other feature this session: the warm-up state
+>   machine and `pickLeader` reuse are unit-testable and covered, but the countdown titles,
+>   scoreboard render, kill-feed broadcast, and MVP line all need an actual round to verify.
 
 ---
 

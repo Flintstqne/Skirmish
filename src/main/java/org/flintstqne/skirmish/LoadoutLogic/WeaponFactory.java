@@ -46,6 +46,18 @@ public final class WeaponFactory {
         return stack;
     }
 
+    /**
+     * Generates a weapon directly by WM title, bypassing the loadout catalog — used by Gun
+     * Game, which has no shop and no per-item cost (design doc §8.5).
+     */
+    public ItemStack createByTitle(String wmWeaponTitle) {
+        ItemStack stack = WeaponMechanicsAPI.generateWeapon(wmWeaponTitle);
+        if (stack == null) {
+            plugin.getLogger().warning("WeaponMechanics has no weapon titled '" + wmWeaponTitle + "'.");
+        }
+        return stack;
+    }
+
     private ItemStack createVanilla(LoadoutCatalog.Entry entry) {
         Material material = Material.matchMaterial(entry.item());
         if (material == null) {

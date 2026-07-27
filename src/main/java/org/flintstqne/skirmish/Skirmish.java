@@ -8,6 +8,8 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.flintstqne.skirmish.CombatLogic.CombatListener;
 import org.flintstqne.skirmish.CombatLogic.DeathSpectatorService;
 import org.flintstqne.skirmish.CombatLogic.SpawnProtectionManager;
+import org.flintstqne.skirmish.GunGameLogic.GunGameListener;
+import org.flintstqne.skirmish.GunGameLogic.GunGameService;
 import org.flintstqne.skirmish.LoadoutLogic.AdminCommand;
 import org.flintstqne.skirmish.LoadoutLogic.LoadoutBuilderGui;
 import org.flintstqne.skirmish.LoadoutLogic.LoadoutCatalog;
@@ -20,10 +22,19 @@ import org.flintstqne.skirmish.LoadoutLogic.WeaponFactory;
 import org.flintstqne.skirmish.MapLogic.ArenaAdminCommand;
 import org.flintstqne.skirmish.MapLogic.ArenaConfig;
 import org.flintstqne.skirmish.MapLogic.BorderWallRenderer;
+import org.flintstqne.skirmish.MapLogic.RandomSpawnSelector;
 import org.flintstqne.skirmish.MapLogic.WorldManager;
+import org.flintstqne.skirmish.ObjectiveLogic.DominationObjective;
+import org.flintstqne.skirmish.ObjectiveLogic.HillObjective;
+import org.flintstqne.skirmish.ObjectiveLogic.ObjectiveUIManager;
 import org.flintstqne.skirmish.RoundLogic.EndRoundSequence;
 import org.flintstqne.skirmish.RoundLogic.RoundCommand;
 import org.flintstqne.skirmish.RoundLogic.RoundService;
+import org.flintstqne.skirmish.StatLogic.StatCommand;
+import org.flintstqne.skirmish.StatLogic.StatListener;
+import org.flintstqne.skirmish.StatLogic.StatService;
+import org.flintstqne.skirmish.Utils.KillstreakService;
+import org.flintstqne.skirmish.Utils.ScoreboardService;
 import org.flintstqne.skirmish.VoteLogic.VoteGui;
 import org.flintstqne.skirmish.VoteLogic.VoteService;
 import org.flintstqne.skirmish.TeamLogic.TeamCommand;
@@ -48,6 +59,8 @@ public final class Skirmish extends JavaPlugin {
     private WorldManager worldManager;
     private VoteService voteService;
     private RoundService roundService;
+    private StatService statService;
+    private ScoreboardService scoreboardService;
 
     @Override
     public void onEnable() {
@@ -80,44 +93,83 @@ public final class Skirmish extends JavaPlugin {
         if (!catalogFile.exists()) saveResource("loadout-catalog.yml", false);
         loadoutCatalog = new LoadoutCatalog(getLogger());
         loadoutCatalog.load(catalogFile);
-        loadoutService = new LoadoutService(configManager, loadoutCatalog, new WeaponFactory(this));
+        WeaponFactory weaponFactory = new WeaponFactory(this);
+        loadoutService = new LoadoutService(configManager, loadoutCatalog, weaponFactory);
         loadoutPresetService = new LoadoutPresetService(databaseManager, loadoutService, configManager, getLogger());
+        GunGameService gunGameService = new GunGameService(configManager, weaponFactory);
+        statService = new StatService(databaseManager, getLogger());
 
-        deathSpectatorService = new DeathSpectatorService(this, configManager, teamService,
-                spawnProtectionManager, loadoutPresetService);
+        deathSpectatorService = new DeathSpectatorService(this, configManager);
 
         // LoadoutBuilderGui and LoadoutPresetGui navigate to each other — the setter breaks
         // the constructor cycle (see LoadoutBuilderGui#setPresetsGui).
         LoadoutBuilderGui loadoutBuilderGui = new LoadoutBuilderGui(loadoutService, loadoutPresetService);
-        LoadoutPresetGui loadoutPresetGui = new LoadoutPresetGui(loadoutPresetService, loadoutService, loadoutBuilderGui);
+        LoadoutPresetGui loadoutPresetGui = new LoadoutPresetGui(this, loadoutPresetService, loadoutService, loadoutBuilderGui);
         loadoutBuilderGui.setPresetsGui(loadoutPresetGui);
 
         BorderWallRenderer borderWallRenderer = new BorderWallRenderer(this, configManager, arenaConfig, worldManager);
 
-        TeamSelectGui teamSelectGui = new TeamSelectGui(this, teamService, configManager);
+        TeamSelectGui teamSelectGui = new TeamSelectGui(this, teamService, configManager, loadoutService);
         TeamEnforcer teamEnforcer = new TeamEnforcer(this, teamService, teamSelectGui);
+
+        RandomSpawnSelector randomSpawns = new RandomSpawnSelector(arenaConfig, worldManager);
 
         voteService = new VoteService(configManager.getVoteableGamemodes(), RoundService.PLAYABLE);
         roundService = new RoundService(this, configManager, teamService, loadoutService, loadoutPresetService,
-                spawnProtectionManager, deathSpectatorService, worldManager, borderWallRenderer, teamEnforcer);
+                spawnProtectionManager, deathSpectatorService, worldManager, borderWallRenderer, teamEnforcer,
+                randomSpawns, gunGameService, statService);
         roundService.setEndRoundSequence(new EndRoundSequence(this, configManager, roundService,
                 deathSpectatorService, voteService, new VoteGui(voteService)));
+        // Breaks the TeamEnforcer/DeathSpectatorService <-> RoundService construction cycles —
+        // both are built before RoundService since RoundService's constructor takes them.
+        teamEnforcer.setRoundService(roundService);
+        deathSpectatorService.setRoundService(roundService);
 
-        CombatListener combatListener = new CombatListener(configManager, teamService, loadoutService, roundService);
+        // Both objectives need a live RoundService reference to credit their score, so they're
+        // wired in after RoundService exists rather than through its constructor.
+        ObjectiveUIManager hillUi = new ObjectiveUIManager(this);
+        HillObjective hillObjective = new HillObjective(this, configManager, arenaConfig, worldManager,
+                teamService, deathSpectatorService, roundService, hillUi, statService);
+        roundService.setHillObjective(hillObjective);
+
+        ObjectiveUIManager dominationUi = new ObjectiveUIManager(this);
+        DominationObjective dominationObjective = new DominationObjective(this, configManager, arenaConfig,
+                worldManager, teamService, deathSpectatorService, roundService, dominationUi, statService);
+        roundService.setDominationObjective(dominationObjective);
+
+        KillstreakService killstreakService = new KillstreakService(configManager, loadoutService, roundService);
+        CombatListener combatListener = new CombatListener(configManager, teamService, loadoutService, roundService,
+                killstreakService);
+        GunGameListener gunGameListener = new GunGameListener(configManager, gunGameService, roundService,
+                killstreakService);
+        StatListener statListener = new StatListener(statService, roundService);
+        scoreboardService = new ScoreboardService(this, configManager, roundService);
 
         getServer().getPluginManager().registerEvents(spawnProtectionManager, this);
         getServer().getPluginManager().registerEvents(deathSpectatorService, this);
         getServer().getPluginManager().registerEvents(loadoutService, this);
+        getServer().getPluginManager().registerEvents(hillUi, this);
+        getServer().getPluginManager().registerEvents(dominationUi, this);
+        getServer().getPluginManager().registerEvents(loadoutPresetGui, this);
         getServer().getPluginManager().registerEvents(combatListener, this);
+        getServer().getPluginManager().registerEvents(gunGameListener, this);
+        getServer().getPluginManager().registerEvents(statListener, this);
         getServer().getPluginManager().registerEvents(borderWallRenderer, this);
         getServer().getPluginManager().registerEvents(teamEnforcer, this);
+        getServer().getPluginManager().registerEvents(killstreakService, this);
+        getServer().getPluginManager().registerEvents(scoreboardService, this);
+        scoreboardService.start();
 
         setExecutor("arena", new ArenaAdminCommand(arenaConfig));
-        setExecutor("team", new TeamCommand(teamSelectGui));
+        setExecutor("team", new TeamCommand(teamSelectGui, roundService));
         setExecutor("loadout", new LoadoutCommand(loadoutService, loadoutBuilderGui));
         setExecutor("loadouts", new LoadoutPresetCommand(loadoutPresetGui));
         setExecutor("round", new RoundCommand(roundService));
-        setExecutor("admin", new AdminCommand(loadoutService));
+        setExecutor("admin", new AdminCommand(loadoutService, configManager, roundService, statService));
+        StatCommand statCommand = new StatCommand(statService);
+        setExecutor("stats", statCommand);
+        setExecutor("leaderboard", statCommand);
+        setExecutor("history", statCommand);
 
         // Players should always be able to load straight into the current round rather
         // than waiting on an admin — the arena is ready as soon as the plugin is.
@@ -130,6 +182,7 @@ public final class Skirmish extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (scoreboardService != null) scoreboardService.stop();
         // Dispose the round world copy — the template is never touched (design doc §7.3).
         if (roundService != null) roundService.shutdown();
         if (deathSpectatorService != null) deathSpectatorService.stopAll();
@@ -175,53 +228,5 @@ public final class Skirmish extends JavaPlugin {
             return;
         }
         world.setKeepSpawnInMemory(true);
-    }
-
-    public ConfigManager getConfigManager() {
-        return configManager;
-    }
-
-    public ArenaConfig getArenaConfig() {
-        return arenaConfig;
-    }
-
-    public DatabaseManager getDatabaseManager() {
-        return databaseManager;
-    }
-
-    public TeamService getTeamService() {
-        return teamService;
-    }
-
-    public SpawnProtectionManager getSpawnProtectionManager() {
-        return spawnProtectionManager;
-    }
-
-    public DeathSpectatorService getDeathSpectatorService() {
-        return deathSpectatorService;
-    }
-
-    public LoadoutCatalog getLoadoutCatalog() {
-        return loadoutCatalog;
-    }
-
-    public LoadoutService getLoadoutService() {
-        return loadoutService;
-    }
-
-    public LoadoutPresetService getLoadoutPresetService() {
-        return loadoutPresetService;
-    }
-
-    public RoundService getRoundService() {
-        return roundService;
-    }
-
-    public VoteService getVoteService() {
-        return voteService;
-    }
-
-    public WorldManager getWorldManager() {
-        return worldManager;
     }
 }

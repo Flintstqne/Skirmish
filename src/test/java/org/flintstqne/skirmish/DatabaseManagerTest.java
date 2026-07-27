@@ -2,6 +2,7 @@ package org.flintstqne.skirmish;
 
 import org.flintstqne.skirmish.LoadoutLogic.LoadoutCatalog;
 import org.flintstqne.skirmish.LoadoutLogic.LoadoutPreset;
+import org.flintstqne.skirmish.StatLogic.PlayerStats;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -196,5 +197,102 @@ class DatabaseManagerTest {
         db.deletePreset(id);
 
         assertNull(db.getActivePreset(player));
+    }
+
+    // ---- player stats & round history (design doc §5.1, §7.10) ----------------
+
+    @Test
+    void unknownPlayerGetsEmptyStatsRatherThanAnError() throws SQLException {
+        PlayerStats stats = db.getPlayerStats(UUID.randomUUID(), "Nobody");
+        assertEquals("Nobody", stats.name());
+        assertEquals(0, stats.kills());
+        assertTrue(stats.winsByMode().isEmpty());
+    }
+
+    @Test
+    void firstIncrementCreatesTheRowRatherThanNeedingOneUpFront() throws SQLException {
+        UUID player = UUID.randomUUID();
+        db.incrementKills(player, "Ally", 1);
+        assertEquals(1, db.getPlayerStats(player, "Ally").kills());
+    }
+
+    @Test
+    void incrementsAccumulateAcrossCalls() throws SQLException {
+        UUID player = UUID.randomUUID();
+        db.incrementKills(player, "Ally", 1);
+        db.incrementKills(player, "Ally", 1);
+        db.incrementDeaths(player, "Ally", 1);
+        db.incrementKnifeKills(player, "Ally", 1);
+        db.incrementObjectivePoints(player, "Ally", 3);
+
+        PlayerStats stats = db.getPlayerStats(player, "Ally");
+        assertEquals(2, stats.kills());
+        assertEquals(1, stats.deaths());
+        assertEquals(1, stats.knifeKills());
+        assertEquals(3, stats.objectivePoints());
+    }
+
+    @Test
+    void playerNameUpdatesOnEveryIncrement() throws SQLException {
+        // Covers a rename between rounds — stats must follow the UUID, and the display
+        // name should reflect however they're named now, not when the row was first created.
+        UUID player = UUID.randomUUID();
+        db.incrementKills(player, "OldName", 1);
+        db.incrementKills(player, "NewName", 1);
+        assertEquals("NewName", db.getPlayerStats(player, "fallback").name());
+    }
+
+    @Test
+    void roundsWonAlsoUpdatesTheWinsByModeBreakdown() throws SQLException {
+        UUID player = UUID.randomUUID();
+        db.incrementRoundsWon(player, "Ally", "TDM");
+        db.incrementRoundsWon(player, "Ally", "TDM");
+        db.incrementRoundsWon(player, "Ally", "KOTH");
+
+        PlayerStats stats = db.getPlayerStats(player, "Ally");
+        assertEquals(3, stats.roundsWon());
+        assertEquals(Map.of("TDM", 2, "KOTH", 1), stats.winsByMode());
+    }
+
+    @Test
+    void leaderboardOrdersDescendingAndRespectsTheLimit() throws SQLException {
+        UUID a = UUID.randomUUID();
+        UUID b = UUID.randomUUID();
+        UUID c = UUID.randomUUID();
+        db.incrementKills(a, "Low", 1);
+        db.incrementKills(b, "High", 10);
+        db.incrementKills(c, "Mid", 5);
+
+        List<DatabaseManager.LeaderboardRow> top2 = db.getLeaderboard("kills", 2);
+        assertEquals(2, top2.size());
+        assertEquals("High", top2.get(0).name());
+        assertEquals(10, top2.get(0).value());
+        assertEquals("Mid", top2.get(1).name());
+    }
+
+    @Test
+    void roundHistoryRoundTrips() throws SQLException {
+        db.recordRoundHistory("TDM", "RED", 1000L, 2000L, 75, 40);
+        try (Statement st = db.getConnection().createStatement();
+             ResultSet rs = st.executeQuery("SELECT * FROM round_history")) {
+            assertTrue(rs.next());
+            assertEquals("TDM", rs.getString("gamemode"));
+            assertEquals("RED", rs.getString("winner"));
+            assertEquals(1000L, rs.getLong("started_at"));
+            assertEquals(2000L, rs.getLong("ended_at"));
+            assertEquals(75, rs.getInt("final_score_a"));
+            assertEquals(40, rs.getInt("final_score_b"));
+        }
+    }
+
+    @Test
+    void roundHistoryAllowsANullWinnerForADraw() throws SQLException {
+        db.recordRoundHistory("FFA", null, 1000L, 2000L, 0, 0);
+        try (Statement st = db.getConnection().createStatement();
+             ResultSet rs = st.executeQuery("SELECT winner FROM round_history")) {
+            assertTrue(rs.next());
+            rs.getString("winner");
+            assertTrue(rs.wasNull());
+        }
     }
 }

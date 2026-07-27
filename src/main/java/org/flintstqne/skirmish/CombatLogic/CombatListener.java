@@ -11,8 +11,11 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.flintstqne.skirmish.ConfigManager;
 import org.flintstqne.skirmish.LoadoutLogic.LoadoutService;
+import org.flintstqne.skirmish.RoundLogic.GamemodeType;
 import org.flintstqne.skirmish.RoundLogic.RoundService;
 import org.flintstqne.skirmish.TeamLogic.TeamService;
+import org.flintstqne.skirmish.Utils.KillFeedUtil;
+import org.flintstqne.skirmish.Utils.KillstreakService;
 
 /**
  * Friendly fire and kill points (design doc §7.7).
@@ -31,12 +34,15 @@ public final class CombatListener implements Listener {
     private final TeamService teams;
     private final LoadoutService loadouts;
     private final RoundService rounds;
+    private final KillstreakService killstreaks;
 
-    public CombatListener(ConfigManager config, TeamService teams, LoadoutService loadouts, RoundService rounds) {
+    public CombatListener(ConfigManager config, TeamService teams, LoadoutService loadouts, RoundService rounds,
+                          KillstreakService killstreaks) {
         this.config = config;
         this.teams = teams;
         this.loadouts = loadouts;
         this.rounds = rounds;
+        this.killstreaks = killstreaks;
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
@@ -60,10 +66,18 @@ public final class CombatListener implements Listener {
         if (!(event.getShooter() instanceof Player killer)) return;
         if (!(event.getVictim() instanceof Player victim)) return;
         if (killer.equals(victim)) return;
+        rounds.recordKillForMvp(killer);
+        KillFeedUtil.broadcastKillFeed(config, killer, victim, event.getWeaponTitle());
+        KillFeedUtil.sendDeathRecap(config, victim, killer, event.getWeaponTitle());
+        // Gun Game has its own win condition and no point economy — GunGameListener owns
+        // this kill entirely, so awarding shop points here would just be a confusing
+        // "+10 pts" message with no shop to spend it in.
+        if (rounds.getGamemode() == GamemodeType.GUN_GAME) return;
 
         int points = config.getKillPoints();
         loadouts.addPoints(killer, points);
         rounds.recordKill(killer);
+        killstreaks.onKill(killer);
         killer.sendActionBar(Component.text(
                 "Killed " + victim.getName() + "  +" + points + " pts", NamedTextColor.GREEN));
     }

@@ -11,6 +11,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.Plugin;
 import org.flintstqne.skirmish.ConfigManager;
+import org.flintstqne.skirmish.LoadoutLogic.LoadoutService;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -32,11 +33,13 @@ public final class TeamSelectGui {
     private final Plugin plugin;
     private final TeamService teams;
     private final ConfigManager config;
+    private final LoadoutService loadouts;
 
-    public TeamSelectGui(Plugin plugin, TeamService teams, ConfigManager config) {
+    public TeamSelectGui(Plugin plugin, TeamService teams, ConfigManager config, LoadoutService loadouts) {
         this.plugin = plugin;
         this.teams = teams;
         this.config = config;
+        this.loadouts = loadouts;
     }
 
     public void open(Player player) {
@@ -112,7 +115,9 @@ public final class TeamSelectGui {
                         text("Teams are uneven — help even them out.", NamedTextColor.GRAY)));
         return new GuiItem(item, click -> {
             if (teams.swapToShortTeam(player)) {
-                player.sendMessage(text("Switched to " + target.getDisplayName() + " team.", target.getColor()));
+                loadouts.addPoints(player, bonus);
+                player.sendMessage(text("Switched to " + target.getDisplayName()
+                        + " team. +" + bonus + " points.", target.getColor()));
                 player.teleport(teams.getSpawn(player));
                 click.getWhoClicked().closeInventory();
             }

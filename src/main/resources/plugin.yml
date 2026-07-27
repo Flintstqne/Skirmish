@@ -25,9 +25,18 @@ commands:
     usage: /round <start <mode>|end|status>
     permission: skirmish.admin
   admin:
-    description: Admin debug tools (currently just the per-life point economy)
-    usage: /admin points <set|get> <player> [amount]
+    description: Admin debug tools (points economy, config reload, round diagnostics, stats reset)
+    usage: /admin <points <set|get> <player> [amount]|stats reset <player|all>|reload|diagnostics>
     permission: skirmish.admin
+  stats:
+    description: Show lifetime stats for yourself or another player
+    usage: /stats [player]
+  leaderboard:
+    description: Show the top players in a stat category
+    usage: /leaderboard <kills|deaths|knife_kills|objective_points|rounds_played|rounds_won>
+  history:
+    description: Show the server's most recent rounds
+    usage: /history [count]
 
 permissions:
   skirmish.admin:

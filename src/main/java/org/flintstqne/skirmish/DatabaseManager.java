@@ -2,6 +2,8 @@ package org.flintstqne.skirmish;
 
 import org.flintstqne.skirmish.LoadoutLogic.LoadoutCatalog;
 import org.flintstqne.skirmish.LoadoutLogic.LoadoutPreset;
+import org.flintstqne.skirmish.StatLogic.PlayerStats;
+import org.flintstqne.skirmish.StatLogic.WinsByMode;
 
 import java.io.File;
 import java.sql.Connection;
@@ -227,5 +229,167 @@ public final class DatabaseManager {
 
     private void putIfPresent(Map<LoadoutCatalog.Category, String> map, LoadoutCatalog.Category category, String value) {
         if (value != null) map.put(category, value);
+    }
+
+    // ---- player stats & round history (design doc §5.1, §7.10) --------------
+
+    /** Every write here upserts — a brand-new player's first kill creates their row. */
+    private void ensurePlayerRow(UUID playerUuid, String name) throws SQLException {
+        try (PreparedStatement ps = connection.prepareStatement(
+                "INSERT INTO player_stats (player_uuid, player_name) VALUES (?, ?) "
+                        + "ON CONFLICT(player_uuid) DO UPDATE SET player_name = excluded.player_name")) {
+            ps.setString(1, playerUuid.toString());
+            ps.setString(2, name);
+            ps.executeUpdate();
+        }
+    }
+
+    public void incrementKills(UUID playerUuid, String name, int amount) throws SQLException {
+        ensurePlayerRow(playerUuid, name);
+        addToColumn(playerUuid, "kills", amount);
+    }
+
+    public void incrementDeaths(UUID playerUuid, String name, int amount) throws SQLException {
+        ensurePlayerRow(playerUuid, name);
+        addToColumn(playerUuid, "deaths", amount);
+    }
+
+    public void incrementKnifeKills(UUID playerUuid, String name, int amount) throws SQLException {
+        ensurePlayerRow(playerUuid, name);
+        addToColumn(playerUuid, "knife_kills", amount);
+    }
+
+    public void incrementObjectivePoints(UUID playerUuid, String name, int amount) throws SQLException {
+        ensurePlayerRow(playerUuid, name);
+        addToColumn(playerUuid, "objective_points", amount);
+    }
+
+    public void incrementRoundsPlayed(UUID playerUuid, String name) throws SQLException {
+        ensurePlayerRow(playerUuid, name);
+        addToColumn(playerUuid, "rounds_played", 1);
+    }
+
+    /** Also bumps the {@code wins_by_mode} JSON blob for this gamemode — a read-modify-write,
+     * safe because every DatabaseManager call in this plugin runs on the main thread. */
+    public void incrementRoundsWon(UUID playerUuid, String name, String gamemode) throws SQLException {
+        ensurePlayerRow(playerUuid, name);
+        addToColumn(playerUuid, "rounds_won", 1);
+
+        Map<String, Integer> wins = WinsByMode.parse(readWinsByModeJson(playerUuid));
+        wins.merge(gamemode, 1, Integer::sum);
+        try (PreparedStatement ps = connection.prepareStatement(
+                "UPDATE player_stats SET wins_by_mode = ? WHERE player_uuid = ?")) {
+            ps.setString(1, WinsByMode.serialize(wins));
+            ps.setString(2, playerUuid.toString());
+            ps.executeUpdate();
+        }
+    }
+
+    private String readWinsByModeJson(UUID playerUuid) throws SQLException {
+        try (PreparedStatement ps = connection.prepareStatement(
+                "SELECT wins_by_mode FROM player_stats WHERE player_uuid = ?")) {
+            ps.setString(1, playerUuid.toString());
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getString("wins_by_mode") : null;
+            }
+        }
+    }
+
+    private void addToColumn(UUID playerUuid, String column, int amount) throws SQLException {
+        try (PreparedStatement ps = connection.prepareStatement(
+                "UPDATE player_stats SET " + column + " = " + column + " + ? WHERE player_uuid = ?")) {
+            ps.setInt(1, amount);
+            ps.setString(2, playerUuid.toString());
+            ps.executeUpdate();
+        }
+    }
+
+    public PlayerStats getPlayerStats(UUID playerUuid, String fallbackName) throws SQLException {
+        try (PreparedStatement ps = connection.prepareStatement(
+                "SELECT player_name, kills, deaths, knife_kills, objective_points, rounds_played, "
+                        + "rounds_won, wins_by_mode FROM player_stats WHERE player_uuid = ?")) {
+            ps.setString(1, playerUuid.toString());
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) return PlayerStats.empty(fallbackName);
+                return new PlayerStats(rs.getString("player_name"), rs.getInt("kills"), rs.getInt("deaths"),
+                        rs.getInt("knife_kills"), rs.getInt("objective_points"), rs.getInt("rounds_played"),
+                        rs.getInt("rounds_won"), WinsByMode.parse(rs.getString("wins_by_mode")));
+            }
+        }
+    }
+
+    /** One row per leaderboard entry: player name and their value in {@code column}. */
+    public record LeaderboardRow(String name, int value) {
+    }
+
+    /**
+     * @param column must be one of the caller-validated leaderboard columns — interpolated
+     *               directly into the SQL since JDBC can't parameterize a column name, so
+     *               this must never see a caller-supplied string directly (see StatService).
+     */
+    public List<LeaderboardRow> getLeaderboard(String column, int limit) throws SQLException {
+        List<LeaderboardRow> rows = new ArrayList<>();
+        try (PreparedStatement ps = connection.prepareStatement(
+                "SELECT player_name, " + column + " AS value FROM player_stats "
+                        + "ORDER BY value DESC LIMIT ?")) {
+            ps.setInt(1, limit);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) rows.add(new LeaderboardRow(rs.getString("player_name"), rs.getInt("value")));
+            }
+        }
+        return rows;
+    }
+
+    public void recordRoundHistory(String gamemode, String winner, long startedAt, long endedAt,
+                                   int finalScoreA, int finalScoreB) throws SQLException {
+        try (PreparedStatement ps = connection.prepareStatement(
+                "INSERT INTO round_history (gamemode, winner, started_at, ended_at, final_score_a, final_score_b) "
+                        + "VALUES (?, ?, ?, ?, ?, ?)")) {
+            ps.setString(1, gamemode);
+            ps.setString(2, winner);
+            ps.setLong(3, startedAt);
+            ps.setLong(4, endedAt);
+            ps.setInt(5, finalScoreA);
+            ps.setInt(6, finalScoreB);
+            ps.executeUpdate();
+        }
+    }
+
+    /** One row of {@code round_history}, most recent first. */
+    public record RoundHistoryRow(String gamemode, String winner, long startedAt, long endedAt,
+                                  int finalScoreA, int finalScoreB) {
+    }
+
+    /** No per-player link exists in this schema (design doc §5.1) — this is the server's
+     * recent rounds, not any one player's. */
+    public List<RoundHistoryRow> getRecentRounds(int limit) throws SQLException {
+        List<RoundHistoryRow> rows = new ArrayList<>();
+        try (PreparedStatement ps = connection.prepareStatement(
+                "SELECT gamemode, winner, started_at, ended_at, final_score_a, final_score_b "
+                        + "FROM round_history ORDER BY round_id DESC LIMIT ?")) {
+            ps.setInt(1, limit);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    rows.add(new RoundHistoryRow(rs.getString("gamemode"), rs.getString("winner"),
+                            rs.getLong("started_at"), rs.getLong("ended_at"),
+                            rs.getInt("final_score_a"), rs.getInt("final_score_b")));
+                }
+            }
+        }
+        return rows;
+    }
+
+    /** Wipes one player's lifetime stats — the row is recreated fresh on their next stat write. */
+    public void resetPlayerStats(UUID playerUuid) throws SQLException {
+        try (PreparedStatement ps = connection.prepareStatement("DELETE FROM player_stats WHERE player_uuid = ?")) {
+            ps.setString(1, playerUuid.toString());
+            ps.executeUpdate();
+        }
+    }
+
+    public void resetAllStats() throws SQLException {
+        try (Statement st = connection.createStatement()) {
+            st.executeUpdate("DELETE FROM player_stats");
+        }
     }
 }
