@@ -12,7 +12,9 @@ import org.flintstqne.skirmish.RoundLogic.GamemodeType;
 
 import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -64,6 +66,11 @@ public final class LoadoutService implements Listener {
 
     public void addPoints(Player player, int amount) {
         points.put(player.getUniqueId(), getPoints(player) + amount);
+    }
+
+    /** Admin override (design doc §10) — sets the current-life balance to an arbitrary value. */
+    public void setPoints(Player player, int amount) {
+        points.put(player.getUniqueId(), amount);
     }
 
     /** Called on every death/respawn and at round start — the whole per-life reset (§7.4). */
@@ -131,6 +138,12 @@ public final class LoadoutService implements Listener {
     /** Rebuilds the player's inventory from their current selection. */
     public void applyToInventory(Player player) {
         player.getInventory().clear();
+        // Inventory#clear() does not touch armor slots (long-standing Bukkit behavior) —
+        // without this, downgrading ARMOR to the no-armor free tier (item: AIR, so
+        // WeaponFactory returns null and the loop below skips it) left the old, no-longer-
+        // affordable vest physically equipped.
+        player.getInventory().setChestplate(null);
+
         Map<LoadoutCatalog.Category, String> selection = getSelection(player);
         for (LoadoutCatalog.Category category : LoadoutCatalog.Category.values()) {
             LoadoutCatalog.Entry entry = catalog.get(selection.get(category));
@@ -165,17 +178,70 @@ public final class LoadoutService implements Listener {
         }
         if (downgraded) {
             player.sendMessage(Component.text(
-                    "Your loadout was too expensive this life — swapped to the free tier.",
+                    "Your loadout was too expensive this life - swapped to the free tier.",
                     NamedTextColor.YELLOW));
         }
         applyToInventory(player);
     }
 
-    /** Full respawn treatment: reset the per-life balance, then re-gear. */
-    public void onRespawn(Player player) {
-        resetPoints(player);
-        if (!isLoadoutsEnabled()) return;
-        applyDefaults(player);
+    /**
+     * Applies a saved preset for this life, downgrading only the categories that don't fit —
+     * unlike {@link #applyDefaults}, a preset is a named, stable loadout that should mostly
+     * survive respawn to respawn, so an unaffordable pick shouldn't take the rest of the
+     * preset down with it (§7.6).
+     *
+     * <p>{@link LoadoutPresetService#save} already keeps paid items out of a preset in the first
+     * place (they're only ever affordable at {@code loadout.starting-points}, which is what a
+     * fresh respawn resets to — a paid item saved anyway could never actually equip). This
+     * downgrade path is what runs anyway, as a defensive fallback for a preset saved under
+     * different config, or a catalog rebalance after the fact.
+     */
+    public void applyPreset(Player player, Map<LoadoutCatalog.Category, String> preset) {
+        Map<LoadoutCatalog.Category, LoadoutCatalog.Entry> wanted = new EnumMap<>(LoadoutCatalog.Category.class);
+        Map<LoadoutCatalog.Category, Integer> costs = new EnumMap<>(LoadoutCatalog.Category.class);
+        for (LoadoutCatalog.Category category : LoadoutCatalog.Category.values()) {
+            LoadoutCatalog.Entry entry = catalog.get(preset.get(category));
+            if (entry == null) continue;
+            wanted.put(category, entry);
+            costs.put(category, entry.cost());
+        }
+        Set<LoadoutCatalog.Category> affordable = affordableCategories(getPoints(player), costs);
+
+        Map<LoadoutCatalog.Category, String> selection = getSelection(player);
+        selection.clear();
+        boolean anyDowngraded = false;
+        for (LoadoutCatalog.Category category : LoadoutCatalog.Category.values()) {
+            LoadoutCatalog.Entry chosen = affordable.contains(category) ? wanted.get(category) : null;
+            if (chosen == null) {
+                chosen = catalog.getFreeDefault(category);
+                if (wanted.containsKey(category)) anyDowngraded = true;
+            }
+            if (chosen != null) selection.put(category, chosen.key());
+        }
+
+        if (anyDowngraded) {
+            player.sendMessage(Component.text(
+                    "Part of your loadout preset was too expensive this life - swapped to the free tier for those slots.",
+                    NamedTextColor.YELLOW));
+        }
+        applyToInventory(player);
+    }
+
+    /**
+     * Greedy, category-order allocation: which of the requested costs fit within
+     * {@code points}, spending it down as it goes. Pure and Bukkit-free so it's testable —
+     * this is the part of {@link #applyPreset} that's actually worth getting right.
+     */
+    static Set<LoadoutCatalog.Category> affordableCategories(int points, Map<LoadoutCatalog.Category, Integer> costs) {
+        Set<LoadoutCatalog.Category> affordable = new LinkedHashSet<>();
+        int remaining = points;
+        for (LoadoutCatalog.Category category : LoadoutCatalog.Category.values()) {
+            Integer cost = costs.get(category);
+            if (cost == null || cost > remaining) continue;
+            affordable.add(category);
+            remaining -= cost;
+        }
+        return affordable;
     }
 
     @EventHandler

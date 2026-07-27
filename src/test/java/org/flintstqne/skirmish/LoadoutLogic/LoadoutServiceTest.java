@@ -2,6 +2,11 @@ package org.flintstqne.skirmish.LoadoutLogic;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.EnumMap;
+import java.util.Map;
+import java.util.Set;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -43,5 +48,50 @@ class LoadoutServiceTest {
         // Even flat broke, dropping from a 350 pick to a 120 one refunds the difference.
         assertTrue(LoadoutService.canAfford(350, 350, 350, 120));
         assertTrue(LoadoutService.canAfford(350, 350, 350, 0));
+    }
+
+    // ---- preset allocation (§7.6) — greedy, category-declaration order --------
+
+    private Map<LoadoutCatalog.Category, Integer> costs(int primary, int secondary, int armor) {
+        Map<LoadoutCatalog.Category, Integer> costs = new EnumMap<>(LoadoutCatalog.Category.class);
+        costs.put(LoadoutCatalog.Category.PRIMARY, primary);
+        costs.put(LoadoutCatalog.Category.SECONDARY, secondary);
+        costs.put(LoadoutCatalog.Category.ARMOR, armor);
+        return costs;
+    }
+
+    @Test
+    void everyCategoryFitsWhenThereIsEnoughForAll() {
+        Set<LoadoutCatalog.Category> affordable = LoadoutService.affordableCategories(500, costs(120, 90, 150));
+        assertEquals(Set.of(LoadoutCatalog.Category.PRIMARY, LoadoutCatalog.Category.SECONDARY,
+                LoadoutCatalog.Category.ARMOR), affordable);
+    }
+
+    @Test
+    void onlyTheCategoriesThatFitAreKept() {
+        // 120 + 90 = 210 points: primary and secondary fit, but nothing is left for a 150 armor.
+        Set<LoadoutCatalog.Category> affordable = LoadoutService.affordableCategories(210, costs(120, 90, 150));
+        assertEquals(Set.of(LoadoutCatalog.Category.PRIMARY, LoadoutCatalog.Category.SECONDARY), affordable);
+    }
+
+    @Test
+    void spendingIsGreedyInCategoryDeclarationOrder() {
+        // 120 points: primary (declared first) spends 100, leaving 20 — armor's 50 cost
+        // would fit a fresh 120-point budget, but not what's left once primary goes first.
+        Set<LoadoutCatalog.Category> affordable = LoadoutService.affordableCategories(120, costs(100, 0, 50));
+        assertEquals(Set.of(LoadoutCatalog.Category.PRIMARY, LoadoutCatalog.Category.SECONDARY), affordable);
+    }
+
+    @Test
+    void categoriesWithNoRequestedCostAreNeverMarkedAffordable() {
+        // An empty preset (nothing selected for secondary/armor) must not spuriously appear.
+        Map<LoadoutCatalog.Category, Integer> costs = new EnumMap<>(LoadoutCatalog.Category.class);
+        costs.put(LoadoutCatalog.Category.PRIMARY, 50);
+        assertEquals(Set.of(LoadoutCatalog.Category.PRIMARY), LoadoutService.affordableCategories(1000, costs));
+    }
+
+    @Test
+    void zeroPointsStillAffordsFreeCategoryEntries() {
+        assertEquals(Set.of(LoadoutCatalog.Category.PRIMARY), LoadoutService.affordableCategories(0, costs(0, 10, 10)));
     }
 }

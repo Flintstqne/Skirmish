@@ -18,6 +18,7 @@ import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.flintstqne.skirmish.ConfigManager;
+import org.flintstqne.skirmish.LoadoutLogic.LoadoutPresetService;
 import org.flintstqne.skirmish.Skirmish;
 import org.flintstqne.skirmish.TeamLogic.TeamService;
 
@@ -41,14 +42,16 @@ public final class DeathSpectatorService implements Listener {
     private final ConfigManager config;
     private final TeamService teams;
     private final SpawnProtectionManager spawnProtection;
+    private final LoadoutPresetService loadoutPresets;
     private final Map<UUID, State> spectating = new HashMap<>();
 
     public DeathSpectatorService(Skirmish plugin, ConfigManager config, TeamService teams,
-                                 SpawnProtectionManager spawnProtection) {
+                                 SpawnProtectionManager spawnProtection, LoadoutPresetService loadoutPresets) {
         this.plugin = plugin;
         this.config = config;
         this.teams = teams;
         this.spawnProtection = spawnProtection;
+        this.loadoutPresets = loadoutPresets;
     }
 
     public boolean isSpectating(Player player) {
@@ -69,6 +72,9 @@ public final class DeathSpectatorService implements Listener {
             if (!player.isOnline() || !isSpectating(player)) return;
             stop(player);
             player.teleport(teams.getSpawn(player));
+            // Gear goes back on here, not at the fake respawn above — while spectating,
+            // apply() strips the inventory so a dead player visibly has nothing (see below).
+            loadoutPresets.onRespawn(player);
             spawnProtection.grantInvulnerability(player);
         }, seconds * 20L);
     }
@@ -104,6 +110,12 @@ public final class DeathSpectatorService implements Listener {
         player.setFlying(true);
         player.setCollidable(false);
         player.getActivePotionEffects().forEach(effect -> player.removePotionEffect(effect.getType()));
+
+        // A dead/spectating player has nothing to fight with — inventory should show it.
+        player.getInventory().clear();
+        // clear() skips armor slots (same Bukkit gotcha as LoadoutService#applyToInventory).
+        player.getInventory().setChestplate(null);
+
         for (Player other : plugin.getServer().getOnlinePlayers()) {
             if (!other.equals(player)) other.hidePlayer(plugin, player);
         }

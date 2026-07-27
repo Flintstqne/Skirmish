@@ -9,7 +9,6 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
-import org.bukkit.event.player.PlayerRespawnEvent;
 import org.flintstqne.skirmish.ConfigManager;
 import org.flintstqne.skirmish.LoadoutLogic.LoadoutService;
 import org.flintstqne.skirmish.RoundLogic.RoundService;
@@ -67,11 +66,5 @@ public final class CombatListener implements Listener {
         rounds.recordKill(killer);
         killer.sendActionBar(Component.text(
                 "Killed " + victim.getName() + "  +" + points + " pts", NamedTextColor.GREEN));
-    }
-
-    /** Per-life economy reset and re-gear (§7.4, §7.6). */
-    @EventHandler(priority = EventPriority.MONITOR)
-    public void onRespawn(PlayerRespawnEvent event) {
-        loadouts.onRespawn(event.getPlayer());
     }
 }

@@ -8,9 +8,13 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.flintstqne.skirmish.CombatLogic.CombatListener;
 import org.flintstqne.skirmish.CombatLogic.DeathSpectatorService;
 import org.flintstqne.skirmish.CombatLogic.SpawnProtectionManager;
+import org.flintstqne.skirmish.LoadoutLogic.AdminCommand;
 import org.flintstqne.skirmish.LoadoutLogic.LoadoutBuilderGui;
 import org.flintstqne.skirmish.LoadoutLogic.LoadoutCatalog;
 import org.flintstqne.skirmish.LoadoutLogic.LoadoutCommand;
+import org.flintstqne.skirmish.LoadoutLogic.LoadoutPresetCommand;
+import org.flintstqne.skirmish.LoadoutLogic.LoadoutPresetGui;
+import org.flintstqne.skirmish.LoadoutLogic.LoadoutPresetService;
 import org.flintstqne.skirmish.LoadoutLogic.LoadoutService;
 import org.flintstqne.skirmish.LoadoutLogic.WeaponFactory;
 import org.flintstqne.skirmish.MapLogic.ArenaAdminCommand;
@@ -40,6 +44,7 @@ public final class Skirmish extends JavaPlugin {
     private DeathSpectatorService deathSpectatorService;
     private LoadoutCatalog loadoutCatalog;
     private LoadoutService loadoutService;
+    private LoadoutPresetService loadoutPresetService;
     private WorldManager worldManager;
     private VoteService voteService;
     private RoundService roundService;
@@ -70,14 +75,22 @@ public final class Skirmish extends JavaPlugin {
 
         teamService = new TeamService(configManager, arenaConfig, worldManager);
         spawnProtectionManager = new SpawnProtectionManager(configManager, teamService);
-        deathSpectatorService = new DeathSpectatorService(this, configManager, teamService, spawnProtectionManager);
 
         File catalogFile = new File(getDataFolder(), "loadout-catalog.yml");
         if (!catalogFile.exists()) saveResource("loadout-catalog.yml", false);
         loadoutCatalog = new LoadoutCatalog(getLogger());
         loadoutCatalog.load(catalogFile);
         loadoutService = new LoadoutService(configManager, loadoutCatalog, new WeaponFactory(this));
-        LoadoutBuilderGui loadoutBuilderGui = new LoadoutBuilderGui(loadoutService);
+        loadoutPresetService = new LoadoutPresetService(databaseManager, loadoutService, configManager, getLogger());
+
+        deathSpectatorService = new DeathSpectatorService(this, configManager, teamService,
+                spawnProtectionManager, loadoutPresetService);
+
+        // LoadoutBuilderGui and LoadoutPresetGui navigate to each other — the setter breaks
+        // the constructor cycle (see LoadoutBuilderGui#setPresetsGui).
+        LoadoutBuilderGui loadoutBuilderGui = new LoadoutBuilderGui(loadoutService, loadoutPresetService);
+        LoadoutPresetGui loadoutPresetGui = new LoadoutPresetGui(loadoutPresetService, loadoutService, loadoutBuilderGui);
+        loadoutBuilderGui.setPresetsGui(loadoutPresetGui);
 
         BorderWallRenderer borderWallRenderer = new BorderWallRenderer(this, configManager, arenaConfig, worldManager);
 
@@ -85,7 +98,7 @@ public final class Skirmish extends JavaPlugin {
         TeamEnforcer teamEnforcer = new TeamEnforcer(this, teamService, teamSelectGui);
 
         voteService = new VoteService(configManager.getVoteableGamemodes(), RoundService.PLAYABLE);
-        roundService = new RoundService(this, configManager, teamService, loadoutService,
+        roundService = new RoundService(this, configManager, teamService, loadoutService, loadoutPresetService,
                 spawnProtectionManager, deathSpectatorService, worldManager, borderWallRenderer, teamEnforcer);
         roundService.setEndRoundSequence(new EndRoundSequence(this, configManager, roundService,
                 deathSpectatorService, voteService, new VoteGui(voteService)));
@@ -102,7 +115,9 @@ public final class Skirmish extends JavaPlugin {
         setExecutor("arena", new ArenaAdminCommand(arenaConfig));
         setExecutor("team", new TeamCommand(teamSelectGui));
         setExecutor("loadout", new LoadoutCommand(loadoutService, loadoutBuilderGui));
+        setExecutor("loadouts", new LoadoutPresetCommand(loadoutPresetGui));
         setExecutor("round", new RoundCommand(roundService));
+        setExecutor("admin", new AdminCommand(loadoutService));
 
         // Players should always be able to load straight into the current round rather
         // than waiting on an admin — the arena is ready as soon as the plugin is.
@@ -192,6 +207,10 @@ public final class Skirmish extends JavaPlugin {
 
     public LoadoutService getLoadoutService() {
         return loadoutService;
+    }
+
+    public LoadoutPresetService getLoadoutPresetService() {
+        return loadoutPresetService;
     }
 
     public RoundService getRoundService() {

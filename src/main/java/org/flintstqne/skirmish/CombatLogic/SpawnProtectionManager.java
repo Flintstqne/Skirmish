@@ -18,6 +18,7 @@ import org.flintstqne.skirmish.TeamLogic.TeamService;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -26,6 +27,14 @@ import java.util.UUID;
  * a persistent no-damage/no-break/no-build bubble around each configured team spawn.
  */
 public final class SpawnProtectionManager implements Listener {
+
+    /**
+     * Spawn protection guards against combat, not gravity or an admin's own command — these
+     * causes always go through even while invulnerable or inside the zone. KILL is what
+     * {@code /kill} (and anything else that force-kills) fires; FALL is normal fall damage.
+     */
+    private static final Set<EntityDamageEvent.DamageCause> ALWAYS_APPLIES = Set.of(
+            EntityDamageEvent.DamageCause.KILL, EntityDamageEvent.DamageCause.FALL);
 
     private final ConfigManager config;
     private final TeamService teams;
@@ -75,6 +84,7 @@ public final class SpawnProtectionManager implements Listener {
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onDamage(EntityDamageEvent event) {
         if (!(event.getEntity() instanceof Player victim)) return;
+        if (ALWAYS_APPLIES.contains(event.getCause())) return;
         if (isInvulnerable(victim)) {
             event.setCancelled(true);
             return;

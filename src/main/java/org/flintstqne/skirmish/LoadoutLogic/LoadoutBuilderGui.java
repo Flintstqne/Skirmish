@@ -29,10 +29,19 @@ public final class LoadoutBuilderGui {
     private static final int FOOTER_ROW = 5;
 
     private final LoadoutService loadouts;
+    private final LoadoutPresetService presets;
     private final Map<UUID, LoadoutCatalog.Category> openTab = new HashMap<>();
 
-    public LoadoutBuilderGui(LoadoutService loadouts) {
+    /** Set once, right after construction — see the Skirmish wiring for why this can't be a constructor arg. */
+    private LoadoutPresetGui presetsGui;
+
+    public LoadoutBuilderGui(LoadoutService loadouts, LoadoutPresetService presets) {
         this.loadouts = loadouts;
+        this.presets = presets;
+    }
+
+    public void setPresetsGui(LoadoutPresetGui presetsGui) {
+        this.presetsGui = presetsGui;
     }
 
     public void open(Player player) {
@@ -63,11 +72,49 @@ public final class LoadoutBuilderGui {
                             + entries.size() + " of " + capacity + " shown).", NamedTextColor.RED));
         }
 
+        pane.addItem(myLoadoutsTabItem(player), WIDTH - 1, 0);
+
         pane.addItem(pointsItem(player), 2, FOOTER_ROW);
         pane.addItem(summaryItem(player), 4, FOOTER_ROW);
+        pane.addItem(savePresetItem(player), 6, FOOTER_ROW);
         pane.addItem(closeItem(), 8, FOOTER_ROW);
 
         gui.show(player);
+    }
+
+    private GuiItem myLoadoutsTabItem(Player player) {
+        ItemStack stack = item(Material.CHEST, line("My Loadouts", NamedTextColor.WHITE),
+                List.of(line("Click to view saved presets", NamedTextColor.YELLOW)));
+        return new GuiItem(stack, click -> {
+            if (presetsGui != null) presetsGui.open(player);
+        });
+    }
+
+    private GuiItem savePresetItem(Player player) {
+        boolean canSave = presets.canSaveMore(player);
+        List<Component> lore = new ArrayList<>();
+        if (canSave) {
+            lore.add(line("Click to save your current", NamedTextColor.GRAY));
+            lore.add(line("selection as a new preset.", NamedTextColor.GRAY));
+            lore.add(line("Only free-tier picks carry over —", NamedTextColor.DARK_GRAY));
+            lore.add(line("paid gear is a one-life purchase.", NamedTextColor.DARK_GRAY));
+        } else {
+            lore.add(line("You're at the saved-loadout limit.", NamedTextColor.RED));
+            lore.add(line("Delete one in My Loadouts first.", NamedTextColor.RED));
+        }
+
+        ItemStack stack = item(canSave ? Material.EMERALD : Material.BARRIER,
+                line("Save Preset", canSave ? NamedTextColor.GREEN : NamedTextColor.RED), lore);
+        return new GuiItem(stack, click -> {
+            if (!canSave) return;
+            LoadoutPreset saved = presets.save(player, "Loadout " + (presets.list(player).size() + 1));
+            if (saved == null) {
+                player.sendMessage(line("Couldn't save that preset — try again.", NamedTextColor.RED));
+                return;
+            }
+            player.sendMessage(line("Saved as '" + saved.name() + "'.", NamedTextColor.GREEN));
+            if (presetsGui != null) presetsGui.open(player);
+        });
     }
 
     private GuiItem tabItem(Player player, LoadoutCatalog.Category category, LoadoutCatalog.Category open) {

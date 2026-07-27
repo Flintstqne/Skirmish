@@ -7,6 +7,7 @@ import org.bukkit.scheduler.BukkitTask;
 import org.flintstqne.skirmish.ConfigManager;
 import org.flintstqne.skirmish.CombatLogic.DeathSpectatorService;
 import org.flintstqne.skirmish.CombatLogic.SpawnProtectionManager;
+import org.flintstqne.skirmish.LoadoutLogic.LoadoutPresetService;
 import org.flintstqne.skirmish.LoadoutLogic.LoadoutService;
 import org.flintstqne.skirmish.MapLogic.BorderWallRenderer;
 import org.flintstqne.skirmish.MapLogic.WorldManager;
@@ -36,6 +37,7 @@ public final class RoundService {
     private final ConfigManager config;
     private final TeamService teams;
     private final LoadoutService loadouts;
+    private final LoadoutPresetService loadoutPresets;
     private final SpawnProtectionManager spawnProtection;
     private final DeathSpectatorService spectators;
     private final WorldManager worlds;
@@ -52,12 +54,14 @@ public final class RoundService {
     private boolean starting;
 
     public RoundService(Skirmish plugin, ConfigManager config, TeamService teams, LoadoutService loadouts,
-                        SpawnProtectionManager spawnProtection, DeathSpectatorService spectators,
-                        WorldManager worlds, BorderWallRenderer borderWallRenderer, TeamEnforcer teamEnforcer) {
+                        LoadoutPresetService loadoutPresets, SpawnProtectionManager spawnProtection,
+                        DeathSpectatorService spectators, WorldManager worlds,
+                        BorderWallRenderer borderWallRenderer, TeamEnforcer teamEnforcer) {
         this.plugin = plugin;
         this.config = config;
         this.teams = teams;
         this.loadouts = loadouts;
+        this.loadoutPresets = loadoutPresets;
         this.spawnProtection = spawnProtection;
         this.spectators = spectators;
         this.worlds = worlds;
@@ -135,7 +139,7 @@ public final class RoundService {
         player.teleport(teams.getSpawn(player));
         player.setHealth(player.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH).getValue());
         player.setFoodLevel(20);
-        loadouts.onRespawn(player);
+        loadoutPresets.onRespawn(player);
         spawnProtection.grantInvulnerability(player);
     }
 

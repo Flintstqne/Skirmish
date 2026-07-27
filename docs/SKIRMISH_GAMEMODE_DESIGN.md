@@ -106,9 +106,12 @@ src/main/java/org/flintstqne/skirmish/
 ├── LoadoutLogic/
 │   ├── LoadoutService.java       # Point economy, category/tier catalog, equip logic
 │   ├── LoadoutBuilderGui.java    # GUI #2
+│   ├── LoadoutPresetService.java # Preset CRUD + active-preset auto-equip, via DatabaseManager
+│   ├── LoadoutPreset.java        # id/name/slot/selection record
 │   ├── LoadoutPresetGui.java     # GUI #3 ("My Loadouts")
 │   ├── WeaponFactory.java        # WeaponMechanics item generation wrapper
-│   └── LoadoutCommand.java       # /loadout, blocked in no-loadout gamemodes
+│   ├── LoadoutCommand.java       # /loadout, blocked in no-loadout gamemodes
+│   └── LoadoutPresetCommand.java # /loadouts — opens the presets GUI directly
 ├── CombatLogic/
 │   ├── CombatListener.java       # Friendly-fire block, kill points, kill feed, streak callouts
 │   ├── SpawnProtectionManager.java
@@ -429,8 +432,23 @@ Thin wrapper around WeaponMechanics' item-generation API — given a catalog `wm
 
 - `LoadoutPresetGui` (§10, mockup #3): up to `kits.max-saved-presets` named presets per player, persisted in `loadout_presets`.
 - Clicking a preset sets it as that player's `active_loadout` — **persists across rounds and restarts**, distinct from the per-life point economy. This is a player-comfort feature ("spawn with my usual kit"), not currency.
-- On every respawn (including round start), if the player has an active preset **and** the current gamemode has `loadouts-enabled: true` **and** they can afford every item in it this life (their reset point balance), auto-equip it. If they can't afford part of it (e.g. an expensive preset item outpaces a low starting-points config), fall back to the free-tier default for that category and notify them — don't silently deny spawn gear.
+- On every respawn (including round start), if the player has an active preset **and** the current gamemode has `loadouts-enabled: true`, auto-equip it (this life's reset balance always affords it — see below) or fall back to the free-tier default per category and notify them — don't silently deny spawn gear.
 - If the gamemode has `loadouts-enabled: false`, the active preset is simply not applied — no error, it just doesn't apply, matching the `/loadout` block behavior.
+
+> **Revised after initial implementation.** This section originally said a preset auto-equips
+> "if they can afford every item in it this life," implying paid items could ride along in a
+> preset and get downgraded per-life if unaffordable. That's backwards: a preset applies right
+> after `resetPoints()`, so the only balance it's ever evaluated against is
+> `loadout.starting-points` — a paid item saved into a preset could *never* actually equip: it
+> would fail this check on literally every single respawn, forever, and get silently downgraded
+> every time. Rather than accept that as normal, `LoadoutPresetService#save` now filters the
+> selection down to whatever's affordable at `loadout.starting-points` *before* saving — paid
+> items are excluded from the preset outright (with a message naming what was excluded), not
+> saved-then-perpetually-downgraded. `LoadoutService#applyPreset` keeps its per-category
+> downgrade logic as a defensive fallback (a preset saved under a different `starting-points`
+> value, or a catalog rebalance after the fact), but it's no longer the primary mechanism.
+> Paid gear stays exactly what it always was for a single life: bought fresh each round through
+> the builder GUI, spent from points earned that life — not something a preset can carry over.
 
 ### 7.7 Combat Rules
 
@@ -590,6 +608,15 @@ button reads "SWITCH TO BLUE" and sits at slot 6.
 
 Left-click = set active (persists cross-round). Right-click = rename/delete. `+ New Loadout` → opens §9.2 in "save as new" mode.
 
+> **Implemented as delete-only.** Right-click deletes; there's no in-place rename yet — it
+> needs a text-input mechanism (AnvilGUI, or a chat-capture listener) this project doesn't
+> have. Presets are auto-named "Loadout N" when saved from the builder's SAVE PRESET button;
+> renaming today means delete + resave. Add real rename support if it turns out players want it.
+>
+> **SAVE PRESET only keeps what's affordable at `loadout.starting-points`.** Paid items in
+> your current selection are silently excluded from the save (with a chat message naming
+> what was dropped) — see §7.6's revision note for why.
+
 ### 9.4 End-of-Round Vote GUI
 
 ```
@@ -620,7 +647,8 @@ Click to vote, click again to change vote, glint on your current pick.
 | `/arena set boundary <corner1\|corner2>` | Admin | Sets arena bounding box (rendered + enforced as a fake wall — see §7.11) |
 | `/arena set world` | Admin | Points the plugin at the current world as the arena template |
 | `/round start <mode>` / `/round end` | Admin | Manual override of the normal vote-driven flow, for testing |
-| `/admin points give/reset <player> <amount>` | Admin | Debug/testing aid, mirrors Trenched's admin merit commands |
+| `/admin points set <player> <amount>` | Admin | Debug/testing aid — overwrites the target's current-life balance (doc originally specified `give/reset`; implemented as an absolute `set` plus a `get` query instead, which covers both testing use cases in one verb) |
+| `/admin points get <player>` | Admin | Reads the target's current-life balance |
 
 Permissions: `skirmish.admin` gates all `/arena` and `/admin` commands, same convention as Trenched's `entrenched.admin`.
 

@@ -10,6 +10,9 @@ commands:
   loadout:
     description: Open the loadout builder (blocked in gamemodes without loadouts)
     usage: /loadout
+  loadouts:
+    description: Open your saved loadout presets ("My Loadouts")
+    usage: /loadouts
   team:
     description: Join a team, or view team status and the swap incentive
     usage: /team
@@ -20,6 +23,10 @@ commands:
   round:
     description: Manually start or end a round, overriding the vote-driven flow
     usage: /round <start <mode>|end|status>
+    permission: skirmish.admin
+  admin:
+    description: Admin debug tools (currently just the per-life point economy)
+    usage: /admin points <set|get> <player> [amount]
     permission: skirmish.admin
 
 permissions:
