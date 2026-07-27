@@ -86,5 +86,15 @@ loadout:
 kits:
   max-saved-presets: 5
 
+arena-border:
+  enabled: true
+  material: RED_STAINED_GLASS
+  render-distance: 24       # blocks from a boundary edge before its wall becomes visible
+  wall-half-width: 10       # the visible wall patch extends this far each way along the edge
+  wall-half-height: 6       # and this far up/down from the player
+  enforce-margin: 2         # blocks past the boundary allowed before movement is blocked outright
+                            # (backstop only — the solid-looking wall is what actually stops most players)
+  tick-interval-ticks: 10   # how often each player's nearby wall is recalculated
+
 discord:
   enabled: false

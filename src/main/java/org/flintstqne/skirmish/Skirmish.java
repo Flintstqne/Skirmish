@@ -15,6 +15,7 @@ import org.flintstqne.skirmish.LoadoutLogic.LoadoutService;
 import org.flintstqne.skirmish.LoadoutLogic.WeaponFactory;
 import org.flintstqne.skirmish.MapLogic.ArenaAdminCommand;
 import org.flintstqne.skirmish.MapLogic.ArenaConfig;
+import org.flintstqne.skirmish.MapLogic.BorderWallRenderer;
 import org.flintstqne.skirmish.MapLogic.WorldManager;
 import org.flintstqne.skirmish.RoundLogic.EndRoundSequence;
 import org.flintstqne.skirmish.RoundLogic.RoundCommand;
@@ -22,6 +23,7 @@ import org.flintstqne.skirmish.RoundLogic.RoundService;
 import org.flintstqne.skirmish.VoteLogic.VoteGui;
 import org.flintstqne.skirmish.VoteLogic.VoteService;
 import org.flintstqne.skirmish.TeamLogic.TeamCommand;
+import org.flintstqne.skirmish.TeamLogic.TeamEnforcer;
 import org.flintstqne.skirmish.TeamLogic.TeamSelectGui;
 import org.flintstqne.skirmish.TeamLogic.TeamService;
 
@@ -47,6 +49,8 @@ public final class Skirmish extends JavaPlugin {
         configManager = new ConfigManager(this);
 
         arenaConfig = new ArenaConfig(this);
+        // Load the arena world BEFORE the full arena.yml parse — see ArenaConfig#peekWorldName.
+        loadArenaWorld(arenaConfig.peekWorldName());
         arenaConfig.load();
 
         databaseManager = new DatabaseManager(getDataFolder(), getLogger());
@@ -57,8 +61,6 @@ public final class Skirmish extends JavaPlugin {
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
-
-        loadArenaWorld();
 
         worldManager = new WorldManager(this, arenaConfig);
         int swept = worldManager.sweepOrphanWorlds();
@@ -77,24 +79,36 @@ public final class Skirmish extends JavaPlugin {
         loadoutService = new LoadoutService(configManager, loadoutCatalog, new WeaponFactory(this));
         LoadoutBuilderGui loadoutBuilderGui = new LoadoutBuilderGui(loadoutService);
 
+        BorderWallRenderer borderWallRenderer = new BorderWallRenderer(this, configManager, arenaConfig, worldManager);
+
+        TeamSelectGui teamSelectGui = new TeamSelectGui(this, teamService, configManager);
+        TeamEnforcer teamEnforcer = new TeamEnforcer(this, teamService, teamSelectGui);
+
         voteService = new VoteService(configManager.getVoteableGamemodes(), RoundService.PLAYABLE);
         roundService = new RoundService(this, configManager, teamService, loadoutService,
-                spawnProtectionManager, deathSpectatorService, worldManager);
+                spawnProtectionManager, deathSpectatorService, worldManager, borderWallRenderer, teamEnforcer);
         roundService.setEndRoundSequence(new EndRoundSequence(this, configManager, roundService,
                 deathSpectatorService, voteService, new VoteGui(voteService)));
 
         CombatListener combatListener = new CombatListener(configManager, teamService, loadoutService, roundService);
 
-        getServer().getPluginManager().registerEvents(teamService, this);
         getServer().getPluginManager().registerEvents(spawnProtectionManager, this);
         getServer().getPluginManager().registerEvents(deathSpectatorService, this);
         getServer().getPluginManager().registerEvents(loadoutService, this);
         getServer().getPluginManager().registerEvents(combatListener, this);
+        getServer().getPluginManager().registerEvents(borderWallRenderer, this);
+        getServer().getPluginManager().registerEvents(teamEnforcer, this);
 
         setExecutor("arena", new ArenaAdminCommand(arenaConfig));
-        setExecutor("team", new TeamCommand(new TeamSelectGui(teamService, configManager)));
+        setExecutor("team", new TeamCommand(teamSelectGui));
         setExecutor("loadout", new LoadoutCommand(loadoutService, loadoutBuilderGui));
         setExecutor("round", new RoundCommand(roundService));
+
+        // Players should always be able to load straight into the current round rather
+        // than waiting on an admin — the arena is ready as soon as the plugin is.
+        if (!RoundService.PLAYABLE.isEmpty()) {
+            roundService.startRound(RoundService.PLAYABLE.get(0));
+        }
 
         getLogger().info("[Skirmish] Enabled");
     }
@@ -115,6 +129,7 @@ public final class Skirmish extends JavaPlugin {
             return;
         }
         command.setExecutor(executor);
+        if (executor instanceof org.bukkit.command.TabCompleter completer) command.setTabCompleter(completer);
     }
 
     /**
@@ -125,8 +140,7 @@ public final class Skirmish extends JavaPlugin {
      * Never generates a missing world — a hand-built arena that isn't on disk is a setup
      * mistake, not something to paper over with a fresh empty world.
      */
-    private void loadArenaWorld() {
-        String name = arenaConfig.getWorldName();
+    private void loadArenaWorld(String name) {
         if (name == null || name.isBlank()) {
             getLogger().warning("No arena world set in arena.yml — run /arena setworld in the arena.");
             return;

@@ -2,9 +2,6 @@ package org.flintstqne.skirmish.TeamLogic;
 
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
-import org.bukkit.event.EventHandler;
-import org.bukkit.event.Listener;
-import org.bukkit.event.player.PlayerQuitEvent;
 import org.flintstqne.skirmish.ConfigManager;
 import org.flintstqne.skirmish.MapLogic.ArenaConfig;
 import org.flintstqne.skirmish.MapLogic.WorldManager;
@@ -19,8 +16,12 @@ import java.util.UUID;
 /**
  * Team assignment, imbalance locking and swap incentive (design doc §7.2).
  * Assignments are in-memory only — teams are round-scoped, nothing here touches data.db.
+ *
+ * Assignments deliberately survive a disconnect — a player who reconnects mid-round keeps
+ * their team (see {@link org.flintstqne.skirmish.TeamLogic.TeamEnforcer}) — and are only
+ * ever wiped in bulk by {@link #clearAll()} at the start of the next round.
  */
-public final class TeamService implements Listener {
+public final class TeamService {
 
     private final ConfigManager config;
     private final ArenaConfig arena;
@@ -128,10 +129,5 @@ public final class TeamService implements Listener {
             }
         }
         return all;
-    }
-
-    @EventHandler
-    public void onQuit(PlayerQuitEvent event) {
-        assignments.remove(event.getPlayer().getUniqueId());
     }
 }

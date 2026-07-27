@@ -245,7 +245,7 @@ vote:
   # gamemode weights/eligibility could be added here later if some modes should vote less often
 
 koth:
-  # Hill coordinate pool lives in arena.yml (set via /arena addhillpoint) — map data, not tuning.
+  # Hill coordinate pool lives in arena.yml (set via /arena add hillpoint) — map data, not tuning.
   capture-radius-blocks: 8
   points-per-second: 1
   score-threshold: 300                  # team score (accumulated hold-seconds × points-per-second) that ends the round
@@ -253,7 +253,7 @@ koth:
 
 domination:
   capture-point-count: 3
-  # Named capture-point pool lives in arena.yml (set via /arena addcapturepoint) — map data.
+  # Named capture-point pool lives in arena.yml (set via /arena add capturepoint) — map data.
   capture-radius-blocks: 6
   points-per-tick-per-zone: 1            # total round points/tick = zones_controlled * this value
   tick-interval-seconds: 1
@@ -293,9 +293,9 @@ discord:
 
 ```yaml
 world-name: "skirmish_arena"
-boundary:
-  min: {x: -100, y: 0, z: -100}
-  max: {x: 100, y: 255, z: 100}
+boundary:                                 # only x/z are used — the boundary always spans
+  min: {x: -100, y: 0, z: -100}           # the world's full build height regardless of the
+  max: {x: 100, y: 255, z: 100}           # y an admin was standing at when setting a corner
 
 team-spawns:
   red:  [{x: -80, y: 65, z: 0, yaw: 90}]
@@ -304,12 +304,12 @@ team-spawns:
 ffa-spawns:                              # random surface spawn pool for FFA/Gun Game
   - {x: 10, y: 70, z: 40}
   - {x: -40, y: 68, z: -10}
-  # ... N entries, populated via /arena addffaspawn
+  # ... N entries, populated via /arena add ffaspawn
 
-hill-points:                             # KOTH pool, one chosen at random per round (/arena addhillpoint)
+hill-points:                             # KOTH pool, one chosen at random per round (/arena add hillpoint)
   - {x: 0, y: 70, z: 0}
 
-capture-points:                          # Domination pool, N chosen per round (/arena addcapturepoint <name>)
+capture-points:                          # Domination pool, N chosen per round (/arena add capturepoint <name>)
   A: {x: 20, y: 70, z: 20}
   B: {x: -20, y: 70, z: 20}
 ```
@@ -465,6 +465,19 @@ Exact flow (already agreed in design discussion — reproduced here as the autho
 
 Same shape as Trenched's `StatLogic`: async-batched writes, lifetime (`player_stats`) + per-round (`round_history`) tracking, `/stats` and `/leaderboard` commands. Categories are simpler than Trenched's 35 — kills, deaths, knife kills, objective points, rounds played/won, wins-by-mode. MVP/recap calc for the winner-announcement phase can reuse Trenched's weighted-formula approach (kills × N + objective points × M), tuned via config the same way.
 
+### 7.11 Arena Boundary Rendering
+
+Added after initial implementation — `/arena set boundary <corner1|corner2>` originally only wrote coordinates to `arena.yml` with nothing reading them back. `MapLogic/ArenaBoundary` turns the two corners into an axis-aligned box on the live round world (re-bound the same way as team spawns, §7.3); `MapLogic/BorderWallRenderer` makes it real:
+
+- **Only X/Z come from the two corners** — the box's vertical extent is always the world's full build height (`World#getMinHeight()`/`getMaxHeight()`), resolved fresh at the start of every round. The Y an admin was standing at when setting a corner is stored but never read for this. Since it's re-resolved every round rather than cached, a boundary set before this behavior existed picks up full height automatically — nothing needs to be re-set.
+
+- **Rendered per player**, not in the real world: a window of fake blocks (`arena-border.material`, default `RED_STAINED_GLASS`) is sent with `Player#sendBlockChange` near whichever edge(s) a player is within `arena-border.render-distance` of. Nothing is placed server-side — no interaction with `WorldManager`'s per-round clone/dispose cycle.
+- **Only a window is drawn**, not the whole perimeter — the full box surface at world height is tens of thousands of blocks. The window is `arena-border.wall-half-width` blocks each way along the edge and `arena-border.wall-half-height` each way vertically, centered on the player, rebuilt whenever it changes.
+- **Near a corner**, a player sees two independent patches (one per nearby face) rather than a single blended diagonal wall — visually adequate, and skips real projection/trig work for a mostly-cosmetic gain.
+- **The fake blocks are the actual stop**: the client renders them as solid terrain and collides with them like any other block. A `PlayerMoveEvent` cancel (`arena-border.enforce-margin`, default 2 blocks past the boundary) is only a backstop for whoever's client hasn't caught up yet — the server has no real block there to enforce against on its own.
+- **Round-scoped**: starts in `RoundService.beginRound`, stops when the round ends. Free-roam end-of-round spectators get the whole arena with no wall, per §7.8's "whole arena, no lock."
+- If no boundary is configured, this silently does nothing — not a hard requirement to run a round.
+
 ---
 
 ## 8. Gamemodes
@@ -600,11 +613,12 @@ Click to vote, click again to change vote, glint on your current pick.
 | `/loadouts` | Player | GUI-only feature — this command is simply the entry point that opens the presets GUI directly (also reachable via the `MY LOADOUTS` tab inside the builder) |
 | `/stats [player]` | Player | Lifetime/round stats |
 | `/leaderboard <category>` | Player | Top players |
-| `/arena setspawn <red\|blue>` | Admin | Sets team spawn to current location, writes to `arena.yml` |
-| `/arena addffaspawn` | Admin | Adds current location to the FFA spawn pool |
-| `/arena addhillpoint` | Admin | Adds current location to the KOTH hill pool |
-| `/arena addcapturepoint <name>` | Admin | Adds current location + name to the Domination pool |
-| `/arena setboundary <corner1\|corner2>` | Admin | Sets arena bounding box |
+| `/arena set spawn <red\|blue>` | Admin | Sets team spawn to current location, writes to `arena.yml` |
+| `/arena add ffaspawn` | Admin | Adds current location to the FFA spawn pool |
+| `/arena add hillpoint` | Admin | Adds current location to the KOTH hill pool |
+| `/arena add capturepoint <name>` | Admin | Adds current location + name to the Domination pool |
+| `/arena set boundary <corner1\|corner2>` | Admin | Sets arena bounding box (rendered + enforced as a fake wall — see §7.11) |
+| `/arena set world` | Admin | Points the plugin at the current world as the arena template |
 | `/round start <mode>` / `/round end` | Admin | Manual override of the normal vote-driven flow, for testing |
 | `/admin points give/reset <player> <amount>` | Admin | Debug/testing aid, mirrors Trenched's admin merit commands |
 

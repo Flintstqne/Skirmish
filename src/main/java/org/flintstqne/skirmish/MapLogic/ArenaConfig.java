@@ -7,6 +7,7 @@ import org.flintstqne.skirmish.Skirmish;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -37,6 +38,29 @@ public final class ArenaConfig {
         //noinspection ResultOfMethodCallIgnored
         file.getParentFile().mkdirs();
         yaml = YamlConfiguration.loadConfiguration(file);
+    }
+
+    /**
+     * Reads just {@code world-name} without touching anything else in the file.
+     *
+     * Must be called — and the world it names loaded — before {@link #load()}: parsing the
+     * full YAML eagerly deserializes every stored {@link Location}, including the team
+     * spawns bound to this same world, and that silently fails ("unknown world") if the
+     * world isn't loaded yet.
+     */
+    public String peekWorldName() {
+        if (!file.isFile()) return null;
+        try {
+            for (String line : Files.readAllLines(file.toPath())) {
+                String trimmed = line.strip();
+                if (trimmed.startsWith("world-name:")) {
+                    return trimmed.substring("world-name:".length()).strip().replaceAll("^[\"']|[\"']$", "");
+                }
+            }
+        } catch (IOException e) {
+            plugin.getLogger().warning("Failed reading arena.yml for world-name: " + e.getMessage());
+        }
+        return null;
     }
 
     public void save() {

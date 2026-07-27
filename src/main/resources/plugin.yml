@@ -15,7 +15,7 @@ commands:
     usage: /team
   arena:
     description: Arena map-data setup (spawns, hill points, capture points, boundary)
-    usage: /arena <setspawn|addffaspawn|addhillpoint|addcapturepoint|setboundary|setworld>
+    usage: /arena <set|add> <spawn|boundary|world|ffaspawn|hillpoint|capturepoint> [args]
     permission: skirmish.admin
   round:
     description: Manually start or end a round, overriding the vote-driven flow

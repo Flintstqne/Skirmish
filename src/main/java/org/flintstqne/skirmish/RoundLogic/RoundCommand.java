@@ -5,12 +5,17 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
+import org.bukkit.command.TabCompleter;
+import org.bukkit.util.StringUtil;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
+import java.util.List;
 import java.util.Locale;
+import java.util.stream.Collectors;
 
 /** /round — manual override of the vote-driven flow, for testing (design doc §10). */
-public final class RoundCommand implements CommandExecutor {
+public final class RoundCommand implements CommandExecutor, TabCompleter {
 
     private final RoundService rounds;
 
@@ -65,5 +70,21 @@ public final class RoundCommand implements CommandExecutor {
                     NamedTextColor.YELLOW));
         }
         return true;
+    }
+
+    @Override
+    public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command,
+                                                @NotNull String alias, String[] args) {
+        List<String> options = switch (args.length) {
+            case 1 -> List.of("start", "end", "status");
+            case 2 -> args[0].equalsIgnoreCase("start")
+                    ? RoundService.PLAYABLE.stream().map(Enum::name).toList()
+                    : List.<String>of();
+            default -> List.<String>of();
+        };
+        String current = args.length == 0 ? "" : args[args.length - 1];
+        return options.stream()
+                .filter(option -> StringUtil.startsWithIgnoreCase(option, current))
+                .collect(Collectors.toList());
     }
 }

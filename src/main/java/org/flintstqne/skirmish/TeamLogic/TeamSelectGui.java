@@ -9,6 +9,7 @@ import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.plugin.Plugin;
 import org.flintstqne.skirmish.ConfigManager;
 
 import java.util.ArrayList;
@@ -17,6 +18,10 @@ import java.util.List;
 /**
  * Team select GUI (design doc §9.1). One row: red banner, info book, blue banner,
  * plus a swap-incentive slot beside the short team's banner while an imbalance lock is up.
+ *
+ * Team selection is mandatory: closing this GUI without a team reopens it next tick (see
+ * {@link TeamEnforcer}). Once a player has a team — including via `/team` on an existing
+ * one, which is purely informational — closing is left alone.
  */
 public final class TeamSelectGui {
 
@@ -24,10 +29,12 @@ public final class TeamSelectGui {
     private static final int SLOT_INFO = 4;
     private static final int SLOT_BLUE = 5;
 
+    private final Plugin plugin;
     private final TeamService teams;
     private final ConfigManager config;
 
-    public TeamSelectGui(TeamService teams, ConfigManager config) {
+    public TeamSelectGui(Plugin plugin, TeamService teams, ConfigManager config) {
+        this.plugin = plugin;
         this.teams = teams;
         this.config = config;
     }
@@ -35,25 +42,30 @@ public final class TeamSelectGui {
     public void open(Player player) {
         ChestGui gui = new ChestGui(1, "Select Team");
         gui.setOnGlobalClick(event -> event.setCancelled(true));
+        gui.setOnClose(event -> {
+            if (teams.getTeam(player) == null) {
+                plugin.getServer().getScheduler().runTask(plugin, () -> open(player));
+            }
+        });
 
         StaticPane pane = new StaticPane(0, 0, 9, 1);
         gui.addPane(pane);
 
-        pane.addItem(bannerItem(player, Team.RED, gui), SLOT_RED, 0);
-        pane.addItem(bannerItem(player, Team.BLUE, gui), SLOT_BLUE, 0);
+        pane.addItem(bannerItem(player, Team.RED), SLOT_RED, 0);
+        pane.addItem(bannerItem(player, Team.BLUE), SLOT_BLUE, 0);
         pane.addItem(infoItem(player), SLOT_INFO, 0);
 
         Team shortTeam = teams.getShortTeam();
         if (shortTeam != null && teams.getTeam(player) == shortTeam.opposite()) {
             // Offer the switch beside the short team's banner — the side that needs bodies.
             int slot = shortTeam == Team.RED ? SLOT_RED - 1 : SLOT_BLUE + 1;
-            pane.addItem(swapItem(player, shortTeam, gui), slot, 0);
+            pane.addItem(swapItem(player, shortTeam), slot, 0);
         }
 
         gui.show(player);
     }
 
-    private GuiItem bannerItem(Player player, Team team, ChestGui gui) {
+    private GuiItem bannerItem(Player player, Team team) {
         Team current = teams.getTeam(player);
         boolean locked = teams.isLocked(team);
         boolean mine = current == team;
@@ -78,7 +90,8 @@ public final class TeamSelectGui {
                 return;
             }
             player.sendMessage(text("Joined " + team.getDisplayName() + " team.", team.getColor()));
-            open(player);
+            player.teleport(teams.getSpawn(player));
+            click.getWhoClicked().closeInventory();
         });
     }
 
@@ -91,7 +104,7 @@ public final class TeamSelectGui {
         return new GuiItem(item(Material.BOOK, text("Teams", NamedTextColor.WHITE), lore));
     }
 
-    private GuiItem swapItem(Player player, Team target, ChestGui gui) {
+    private GuiItem swapItem(Player player, Team target) {
         int bonus = config.getSwapIncentivePoints();
         ItemStack item = item(Material.NETHER_STAR,
                 text("Switch to " + target.getDisplayName(), target.getColor()),
@@ -100,7 +113,8 @@ public final class TeamSelectGui {
         return new GuiItem(item, click -> {
             if (teams.swapToShortTeam(player)) {
                 player.sendMessage(text("Switched to " + target.getDisplayName() + " team.", target.getColor()));
-                open(player);
+                player.teleport(teams.getSpawn(player));
+                click.getWhoClicked().closeInventory();
             }
         });
     }

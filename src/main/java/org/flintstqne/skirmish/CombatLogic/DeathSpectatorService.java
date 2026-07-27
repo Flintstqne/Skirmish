@@ -12,6 +12,7 @@ import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
@@ -77,7 +78,9 @@ public final class DeathSpectatorService implements Listener {
         if (state == null) return;
         player.setGameMode(state.previousMode());
         player.setFlying(false);
-        player.setAllowFlight(false);
+        // CREATIVE grants flight on its own — forcing it off here would strip it and
+        // Bukkit won't hand it back automatically once the gamemode is already set.
+        player.setAllowFlight(state.previousMode() == GameMode.CREATIVE);
         player.setCollidable(true);
         for (Player other : plugin.getServer().getOnlinePlayers()) other.showPlayer(plugin, player);
     }
@@ -149,6 +152,11 @@ public final class DeathSpectatorService implements Listener {
     @EventHandler(priority = EventPriority.LOWEST)
     public void onDealDamage(EntityDamageByEntityEvent event) {
         if (event.getDamager() instanceof Player player && isSpectating(player)) event.setCancelled(true);
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onPickup(EntityPickupItemEvent event) {
+        if (event.getEntity() instanceof Player player && isSpectating(player)) event.setCancelled(true);
     }
 
     @EventHandler

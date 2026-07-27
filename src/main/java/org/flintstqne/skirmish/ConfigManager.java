@@ -1,5 +1,6 @@
 package org.flintstqne.skirmish;
 
+import org.bukkit.Material;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.flintstqne.skirmish.RoundLogic.GamemodeType;
 
@@ -107,4 +108,18 @@ public final class ConfigManager {
     public List<String> getWeaponLadder() { return c().getStringList("gungame.weapon-ladder"); }
     public boolean isDemoteOnKnifeDeath() { return c().getBoolean("gungame.demote-on-knife-death", true); }
     public boolean isFinalKnifeKillInstantWin() { return c().getBoolean("gungame.final-knife-kill-wins-instantly", true); }
+
+    // arena border — visible + enforced boundary rendered from arena.yml's boundary corners
+    public boolean isArenaBorderEnabled() { return c().getBoolean("arena-border.enabled", true); }
+
+    public Material getBorderMaterial() {
+        Material material = Material.matchMaterial(c().getString("arena-border.material", "RED_STAINED_GLASS"));
+        return material != null ? material : Material.RED_STAINED_GLASS;
+    }
+
+    public int getBorderRenderDistance() { return c().getInt("arena-border.render-distance", 24); }
+    public int getBorderWallHalfWidth() { return c().getInt("arena-border.wall-half-width", 10); }
+    public int getBorderWallHalfHeight() { return c().getInt("arena-border.wall-half-height", 6); }
+    public int getBorderEnforceMargin() { return c().getInt("arena-border.enforce-margin", 2); }
+    public int getBorderTickIntervalTicks() { return c().getInt("arena-border.tick-interval-ticks", 10); }
 }

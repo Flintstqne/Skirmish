@@ -8,9 +8,11 @@ import org.flintstqne.skirmish.ConfigManager;
 import org.flintstqne.skirmish.CombatLogic.DeathSpectatorService;
 import org.flintstqne.skirmish.CombatLogic.SpawnProtectionManager;
 import org.flintstqne.skirmish.LoadoutLogic.LoadoutService;
+import org.flintstqne.skirmish.MapLogic.BorderWallRenderer;
 import org.flintstqne.skirmish.MapLogic.WorldManager;
 import org.flintstqne.skirmish.Skirmish;
 import org.flintstqne.skirmish.TeamLogic.Team;
+import org.flintstqne.skirmish.TeamLogic.TeamEnforcer;
 import org.flintstqne.skirmish.TeamLogic.TeamService;
 
 import java.util.EnumMap;
@@ -37,6 +39,8 @@ public final class RoundService {
     private final SpawnProtectionManager spawnProtection;
     private final DeathSpectatorService spectators;
     private final WorldManager worlds;
+    private final BorderWallRenderer borderWallRenderer;
+    private final TeamEnforcer teamEnforcer;
 
     private EndRoundSequence endRoundSequence;
 
@@ -49,7 +53,7 @@ public final class RoundService {
 
     public RoundService(Skirmish plugin, ConfigManager config, TeamService teams, LoadoutService loadouts,
                         SpawnProtectionManager spawnProtection, DeathSpectatorService spectators,
-                        WorldManager worlds) {
+                        WorldManager worlds, BorderWallRenderer borderWallRenderer, TeamEnforcer teamEnforcer) {
         this.plugin = plugin;
         this.config = config;
         this.teams = teams;
@@ -57,6 +61,8 @@ public final class RoundService {
         this.spawnProtection = spawnProtection;
         this.spectators = spectators;
         this.worlds = worlds;
+        this.borderWallRenderer = borderWallRenderer;
+        this.teamEnforcer = teamEnforcer;
     }
 
     public void setEndRoundSequence(EndRoundSequence endRoundSequence) {
@@ -105,13 +111,18 @@ public final class RoundService {
         gamemode = mode;
         state = RoundState.ACTIVE;
         teamScores.clear();
+        // Fresh teams every round (design doc §7.2 doesn't say teams persist across rounds,
+        // and the arena itself is a fresh clone) — everyone gets prompted again below.
+        teams.clearAll();
         endsAtMillis = System.currentTimeMillis() + config.getRoundDurationMinutes() * 60_000L;
 
         applyGamemodeRules();
+        borderWallRenderer.startForActiveRound();
 
         for (Player player : plugin.getServer().getOnlinePlayers()) {
             spectators.stop(player);
             preparePlayer(player);
+            teamEnforcer.promptOrRestore(player);
         }
 
         broadcast(Component.text("Round started: " + mode.name() + " — first to "
@@ -175,6 +186,8 @@ public final class RoundService {
         if (state != RoundState.ACTIVE) return;
         state = RoundState.ENDING;
         stopTimer();
+        // Free-roam spectators get the whole arena, no lock (§7.8) — the wall is round-only.
+        borderWallRenderer.stop();
 
         Team decided = winner != null ? winner : leader();
         if (endRoundSequence != null) {
@@ -202,6 +215,7 @@ public final class RoundService {
     /** Disposes the round world on disable — no diff to replay, the copy just goes away (§7.3). */
     public void shutdown() {
         stopTimer();
+        borderWallRenderer.stop();
         state = RoundState.WAITING;
         worlds.shutdown();
     }

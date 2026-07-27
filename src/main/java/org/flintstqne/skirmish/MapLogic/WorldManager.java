@@ -105,9 +105,11 @@ public final class WorldManager {
             return;
         }
 
-        // Flush the template if it is loaded, or the copy could catch a half-written state.
-        World templateWorld = Bukkit.getWorld(templateName);
-        if (templateWorld != null) templateWorld.save();
+        // A loaded template keeps ticking — mobs walk between chunks, autosave fires — so
+        // a mid-copy write races the copy and produces corrupt regionfiles and duplicate
+        // entities in the result. World#save() alone doesn't stop that; only a full unload
+        // (which blocks until every chunk is flushed and closed) does.
+        boolean reloadTemplateAfter = unloadTemplate(templateName);
 
         String name = ROUND_PREFIX + (++counter);
         File destination = new File(Bukkit.getWorldContainer(), name);
@@ -115,6 +117,7 @@ public final class WorldManager {
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
             boolean copied = copyTemplate(template.toPath(), destination.toPath());
             plugin.getServer().getScheduler().runTask(plugin, () -> {
+                if (reloadTemplateAfter) Bukkit.createWorld(new WorldCreator(templateName));
                 if (!copied) {
                     deleteRecursively(destination.toPath());
                     callback.accept(null);
@@ -123,6 +126,22 @@ public final class WorldManager {
                 callback.accept(loadAndConfigure(name));
             });
         });
+    }
+
+    /** @return true if the template was loaded (and should be reloaded once copying finishes). */
+    private boolean unloadTemplate(String templateName) {
+        World templateWorld = Bukkit.getWorld(templateName);
+        if (templateWorld == null) return false;
+
+        Location fallback = fallbackSpawn(templateWorld);
+        for (Player player : templateWorld.getPlayers()) player.teleport(fallback);
+
+        if (!Bukkit.unloadWorld(templateWorld, true)) {
+            plugin.getLogger().warning("Could not unload arena template '" + templateName
+                    + "' before copying it — the round world may come out corrupted.");
+            return false;
+        }
+        return true;
     }
 
     private World loadAndConfigure(String name) {
