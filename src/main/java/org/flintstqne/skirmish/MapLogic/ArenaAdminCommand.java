@@ -1,7 +1,5 @@
 package org.flintstqne.skirmish.MapLogic;
 
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Location;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -9,6 +7,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 import org.bukkit.util.StringUtil;
+import org.flintstqne.skirmish.Utils.Branding;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -49,7 +48,7 @@ public final class ArenaAdminCommand implements CommandExecutor, TabCompleter {
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command,
                              @NotNull String label, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(Component.text("Run this in-game — it uses your location.", NamedTextColor.RED));
+            Branding.error(sender, "Run this in-game — it uses your location.");
             return true;
         }
         if (args.length < 2) {
@@ -168,14 +167,14 @@ public final class ArenaAdminCommand implements CommandExecutor, TabCompleter {
     }
 
     private void usage(Player p) {
-        p.sendMessage(Component.text(USAGE, NamedTextColor.YELLOW));
+        Branding.warning(p, USAGE);
     }
 
     private void ok(Player p, String msg) {
-        p.sendMessage(Component.text("[Skirmish] " + msg, NamedTextColor.GREEN));
+        Branding.success(p, msg);
     }
 
     private void error(Player p, String msg) {
-        p.sendMessage(Component.text("[Skirmish] " + msg, NamedTextColor.RED));
+        Branding.error(p, msg);
     }
 }

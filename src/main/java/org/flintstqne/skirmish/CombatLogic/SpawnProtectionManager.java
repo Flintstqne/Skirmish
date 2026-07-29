@@ -14,6 +14,7 @@ import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.flintstqne.skirmish.ConfigManager;
 import org.flintstqne.skirmish.TeamLogic.TeamService;
+import org.flintstqne.skirmish.Utils.Branding;
 
 import java.util.HashMap;
 import java.util.List;
@@ -56,7 +57,7 @@ public final class SpawnProtectionManager implements Listener {
     public void grantInvulnerability(Player player) {
         int seconds = config.getInvulnerabilitySeconds();
         invulnerableUntil.put(player.getUniqueId(), System.currentTimeMillis() + seconds * 1000L);
-        player.sendMessage(Component.text("Spawn protection: " + seconds + "s", NamedTextColor.AQUA));
+        Branding.info(player, "Spawn protection: " + seconds + "s");
     }
 
     public boolean isInvulnerable(Player player) {
@@ -94,10 +95,12 @@ public final class SpawnProtectionManager implements Listener {
         }
     }
 
-    /** An attacker standing in a spawn zone can't shoot out of it either. */
+    /** An attacker standing in a spawn zone can't shoot out of it either — but mobs and other
+     * non-player entities aren't protected by this rule, so players can still fight through them. */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onDamageByEntity(EntityDamageByEntityEvent event) {
         if (!config.isSpawnZoneNoDamage()) return;
+        if (!(event.getEntity() instanceof Player)) return;
         if (event.getDamager() instanceof Player attacker && inSpawnZone(attacker.getLocation())) {
             event.setCancelled(true);
         }

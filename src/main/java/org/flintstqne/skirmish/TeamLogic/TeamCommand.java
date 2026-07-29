@@ -7,6 +7,7 @@ import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.flintstqne.skirmish.RoundLogic.RoundService;
+import org.flintstqne.skirmish.Utils.Branding;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -28,7 +29,7 @@ public final class TeamCommand implements CommandExecutor {
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command,
                              @NotNull String label, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(Component.text("Players only.", NamedTextColor.RED));
+            Branding.error(sender, "Players only.");
             return true;
         }
         if (!rounds.getGamemode().usesTeams()) {

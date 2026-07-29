@@ -16,6 +16,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.Plugin;
+import org.flintstqne.skirmish.Utils.Branding;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -82,15 +83,14 @@ public final class LoadoutPresetGui implements Listener {
             if (click.isShiftClick()) {
                 pendingRename.put(player.getUniqueId(), preset.id());
                 player.closeInventory();
-                player.sendMessage(text("Type the new name for '" + preset.name()
-                        + "' in chat (or 'cancel').", NamedTextColor.YELLOW));
+                Branding.warning(player, "Type the new name for '" + preset.name() + "' in chat (or 'cancel').");
             } else if (click.isRightClick()) {
                 presets.delete(preset.id());
-                player.sendMessage(text("Deleted '" + preset.name() + "'.", NamedTextColor.RED));
+                Branding.error(player, "Deleted '" + preset.name() + "'.");
                 open(player);
             } else {
                 presets.setActive(player, preset.id());
-                player.sendMessage(text("'" + preset.name() + "' is now your active loadout.", NamedTextColor.GREEN));
+                Branding.success(player, "'" + preset.name() + "' is now your active loadout.");
                 open(player);
             }
         });
@@ -107,11 +107,11 @@ public final class LoadoutPresetGui implements Listener {
         plugin.getServer().getScheduler().runTask(plugin, () -> {
             pendingRename.remove(player.getUniqueId());
             if (newName.isEmpty() || newName.equalsIgnoreCase("cancel")) {
-                player.sendMessage(text("Rename cancelled.", NamedTextColor.GRAY));
+                Branding.send(player, "Rename cancelled.");
                 return;
             }
             presets.rename(presetId, newName);
-            player.sendMessage(text("Renamed to '" + newName + "'.", NamedTextColor.GREEN));
+            Branding.success(player, "Renamed to '" + newName + "'.");
             open(player);
         });
     }

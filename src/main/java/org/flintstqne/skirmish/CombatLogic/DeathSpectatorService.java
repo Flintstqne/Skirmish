@@ -20,6 +20,7 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.flintstqne.skirmish.ConfigManager;
 import org.flintstqne.skirmish.RoundLogic.RoundService;
 import org.flintstqne.skirmish.Skirmish;
+import org.flintstqne.skirmish.Utils.Branding;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -70,7 +71,7 @@ public final class DeathSpectatorService implements Listener {
     public void startDeathSpectator(Player player, Location deathLocation) {
         apply(player, deathLocation, config.getSpectatorLockRadius());
         int seconds = config.getRespawnSeconds();
-        player.sendMessage(Component.text("Respawning in " + seconds + "s", NamedTextColor.GRAY));
+        Branding.send(player, "Respawning in " + seconds + "s");
         plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
             if (!player.isOnline() || !isSpectating(player)) return;
             stop(player);

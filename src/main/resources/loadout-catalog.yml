@@ -20,14 +20,20 @@ categories:
     - {key: m4a1,    name: "M4A1",       wm-weapon: "M4A1",    cost: 120}
     - {key: aug,     name: "AUG",        wm-weapon: "AUG",     cost: 150}
     - {key: stg44,   name: "STG-44",     wm-weapon: "STG44",   cost: 150}
+    - {key: thompson, name: "Thompson",  wm-weapon: "Thompson", cost: 180}
+    - {key: mp40,     name: "MP40",       wm-weapon: "MP40",    cost: 170}
     - {key: origin,  name: "Origin 12",  wm-weapon: "Origin_12", cost: 200}
+    - {key: garand,  name: "M1 Garand",  wm-weapon: "M1_Garand", cost: 260}
     - {key: kar98k,  name: "Kar98k",     wm-weapon: "Kar98k",  cost: 300}
     - {key: ax50,    name: "AX-50",      wm-weapon: "AX_50",   cost: 350}
     - {key: mg34,    name: "MG34",       wm-weapon: "MG34",    cost: 500}
+    - {key: lewisgun, name: "Lewis Gun", wm-weapon: "Lewis_Gun", cost: 480}
 
   secondary:
     - {key: magnum,  name: ".357 Magnum", wm-weapon: "357_Magnum", cost: 0}
     - {key: deagle,  name: "50 GS",       wm-weapon: "50_GS",      cost: 90}
+    - {key: luger,   name: "Luger P08",   wm-weapon: "Luger",      cost: 110}
+    - {key: m1911,   name: "M1911",       wm-weapon: "M1911",      cost: 100}
     - {key: uzi,     name: "Uzi",         wm-weapon: "Uzi",        cost: 140}
 
   armor:

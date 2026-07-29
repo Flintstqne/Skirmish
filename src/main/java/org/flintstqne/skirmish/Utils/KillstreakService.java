@@ -1,7 +1,6 @@
 package org.flintstqne.skirmish.Utils;
 
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -46,8 +45,8 @@ public final class KillstreakService implements Listener {
         if (config.isKillstreakBonusPointsEnabled()) {
             loadouts.addPoints(killer, config.getKillstreakBonusPointsPerThreshold());
         }
-        Component message = Component.text(
-                killer.getName() + " is on a " + callout + "! (" + streak + " kills)", NamedTextColor.GOLD);
+        Component message = Branding.message(
+                killer.getName() + " is on a " + callout + "! (" + streak + " kills)", Branding.BRAND);
         Bukkit.getOnlinePlayers().forEach(p -> p.sendMessage(message));
     }
 

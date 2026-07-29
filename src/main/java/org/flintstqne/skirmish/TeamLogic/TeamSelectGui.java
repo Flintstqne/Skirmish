@@ -12,6 +12,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.Plugin;
 import org.flintstqne.skirmish.ConfigManager;
 import org.flintstqne.skirmish.LoadoutLogic.LoadoutService;
+import org.flintstqne.skirmish.Utils.Branding;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -46,8 +47,13 @@ public final class TeamSelectGui {
         ChestGui gui = new ChestGui(1, "Select Team");
         gui.setOnGlobalClick(event -> event.setCancelled(true));
         gui.setOnClose(event -> {
+            // 1-tick delay, not runTask: a 0-delay task scheduled from inside the scheduler
+            // heartbeat re-runs in the same tick, and show() closing the old inventory fires
+            // this handler again — infinite loop, watchdog trips.
             if (teams.getTeam(player) == null) {
-                plugin.getServer().getScheduler().runTask(plugin, () -> open(player));
+                plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                    if (player.isOnline() && teams.getTeam(player) == null) open(player);
+                }, 1L);
             }
         });
 
@@ -89,10 +95,10 @@ public final class TeamSelectGui {
         return new GuiItem(item, click -> {
             if (mine) return;
             if (!teams.join(player, team)) {
-                player.sendMessage(text(team.getDisplayName() + " team is locked — it's too full.", NamedTextColor.RED));
+                Branding.error(player, team.getDisplayName() + " team is locked — it's too full.");
                 return;
             }
-            player.sendMessage(text("Joined " + team.getDisplayName() + " team.", team.getColor()));
+            player.sendMessage(Branding.message("Joined " + team.getDisplayName() + " team.", team.getColor()));
             player.teleport(teams.getSpawn(player));
             click.getWhoClicked().closeInventory();
         });
@@ -116,7 +122,7 @@ public final class TeamSelectGui {
         return new GuiItem(item, click -> {
             if (teams.swapToShortTeam(player)) {
                 loadouts.addPoints(player, bonus);
-                player.sendMessage(text("Switched to " + target.getDisplayName()
+                player.sendMessage(Branding.message("Switched to " + target.getDisplayName()
                         + " team. +" + bonus + " points.", target.getColor()));
                 player.teleport(teams.getSpawn(player));
                 click.getWhoClicked().closeInventory();

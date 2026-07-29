@@ -1,7 +1,7 @@
 package org.flintstqne.skirmish.LoadoutLogic;
 
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.command.Command;
@@ -13,6 +13,7 @@ import org.bukkit.util.StringUtil;
 import org.flintstqne.skirmish.ConfigManager;
 import org.flintstqne.skirmish.RoundLogic.RoundService;
 import org.flintstqne.skirmish.StatLogic.StatService;
+import org.flintstqne.skirmish.Utils.Branding;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -54,7 +55,7 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
         switch (args[0].toLowerCase(Locale.ROOT)) {
             case "reload" -> {
                 config.reload();
-                sender.sendMessage(Component.text("config.yml reloaded.", NamedTextColor.GREEN));
+                Branding.success(sender, "config.yml reloaded.");
             }
             case "diagnostics" -> runDiagnostics(sender);
             case "stats" -> runStatsReset(sender, args);
@@ -65,27 +66,27 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
     }
 
     private void runDiagnostics(CommandSender sender) {
-        sender.sendMessage(Component.text("--- Round diagnostics ---", NamedTextColor.GOLD));
-        sender.sendMessage(Component.text("Gamemode: " + rounds.getGamemode(), NamedTextColor.WHITE));
-        sender.sendMessage(Component.text("State: " + rounds.getState(), NamedTextColor.WHITE));
-        sender.sendMessage(Component.text("Warmup active: " + rounds.isWarmupActive(), NamedTextColor.WHITE));
-        sender.sendMessage(Component.text("Seconds remaining: " + rounds.getSecondsRemaining(), NamedTextColor.WHITE));
-        sender.sendMessage(Component.text("Playable gamemodes: " + RoundService.PLAYABLE, NamedTextColor.WHITE));
+        sender.sendMessage(heading("Round diagnostics"));
+        sender.sendMessage(Component.text("Gamemode: " + rounds.getGamemode(), Branding.HIGHLIGHT));
+        sender.sendMessage(Component.text("State: " + rounds.getState(), Branding.HIGHLIGHT));
+        sender.sendMessage(Component.text("Warmup active: " + rounds.isWarmupActive(), Branding.HIGHLIGHT));
+        sender.sendMessage(Component.text("Seconds remaining: " + rounds.getSecondsRemaining(), Branding.HIGHLIGHT));
+        sender.sendMessage(Component.text("Playable gamemodes: " + RoundService.PLAYABLE, Branding.HIGHLIGHT));
     }
 
     private void runStatsReset(CommandSender sender, String[] args) {
         if (args.length < 3 || !args[1].equalsIgnoreCase("reset")) {
-            sender.sendMessage(Component.text("Usage: /admin stats reset <player|all>", NamedTextColor.YELLOW));
+            Branding.warning(sender, "Usage: /admin stats reset <player|all>");
             return;
         }
         if (args[2].equalsIgnoreCase("all")) {
             stats.resetAllStats();
-            sender.sendMessage(Component.text("Reset lifetime stats for every player.", NamedTextColor.RED));
+            Branding.error(sender, "Reset lifetime stats for every player.");
             return;
         }
         OfflinePlayer target = Bukkit.getOfflinePlayer(args[2]);
         stats.resetStats(target);
-        sender.sendMessage(Component.text("Reset lifetime stats for " + target.getName() + ".", NamedTextColor.RED));
+        Branding.error(sender, "Reset lifetime stats for " + target.getName() + ".");
     }
 
     private boolean runPoints(CommandSender sender, String[] args) {
@@ -107,16 +108,15 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
                 try {
                     amount = Integer.parseInt(args[3]);
                 } catch (NumberFormatException e) {
-                    sender.sendMessage(Component.text("Amount must be a whole number.", NamedTextColor.RED));
+                    Branding.error(sender, "Amount must be a whole number.");
                     return true;
                 }
                 if (amount < 0) {
-                    sender.sendMessage(Component.text("Amount can't be negative.", NamedTextColor.RED));
+                    Branding.error(sender, "Amount can't be negative.");
                     return true;
                 }
                 loadouts.setPoints(target, amount);
-                sender.sendMessage(Component.text(
-                        "Set " + target.getName() + "'s points to " + amount + ".", NamedTextColor.GREEN));
+                Branding.success(sender, "Set " + target.getName() + "'s points to " + amount + ".");
             }
             case "get" -> {
                 if (args.length < 3) {
@@ -125,9 +125,7 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
                 }
                 Player target = resolvePlayer(sender, args[2]);
                 if (target == null) return true;
-                sender.sendMessage(Component.text(
-                        target.getName() + " has " + loadouts.getPoints(target) + " points this life.",
-                        NamedTextColor.AQUA));
+                Branding.info(sender, target.getName() + " has " + loadouts.getPoints(target) + " points this life.");
             }
             default -> usage(sender);
         }
@@ -137,13 +135,17 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
     private Player resolvePlayer(CommandSender sender, String name) {
         Player player = Bukkit.getPlayerExact(name);
         if (player == null) {
-            sender.sendMessage(Component.text("No online player named '" + name + "'.", NamedTextColor.RED));
+            Branding.error(sender, "No online player named '" + name + "'.");
         }
         return player;
     }
 
     private void usage(CommandSender sender) {
-        sender.sendMessage(Component.text(USAGE, NamedTextColor.YELLOW));
+        Branding.warning(sender, USAGE);
+    }
+
+    private Component heading(String title) {
+        return Branding.prefix(Component.text(title, Branding.BRAND, TextDecoration.BOLD));
     }
 
     @Override

@@ -20,6 +20,7 @@ import org.flintstqne.skirmish.ObjectiveLogic.HillObjective;
 import org.flintstqne.skirmish.Skirmish;
 import org.flintstqne.skirmish.StatLogic.StatService;
 import org.flintstqne.skirmish.TeamLogic.Team;
+import org.flintstqne.skirmish.Utils.Branding;
 import org.flintstqne.skirmish.TeamLogic.TeamEnforcer;
 import org.flintstqne.skirmish.TeamLogic.TeamService;
 
@@ -482,6 +483,7 @@ public final class RoundService {
     }
 
     private void broadcast(Component message) {
-        plugin.getServer().getOnlinePlayers().forEach(player -> player.sendMessage(message));
+        Component branded = Branding.prefix(message);
+        plugin.getServer().getOnlinePlayers().forEach(player -> player.sendMessage(branded));
     }
 }

@@ -1,7 +1,5 @@
 package org.flintstqne.skirmish.LoadoutLogic;
 
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -9,6 +7,7 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.ItemStack;
 import org.flintstqne.skirmish.ConfigManager;
 import org.flintstqne.skirmish.RoundLogic.GamemodeType;
+import org.flintstqne.skirmish.Utils.Branding;
 
 import java.util.EnumMap;
 import java.util.HashMap;
@@ -173,9 +172,7 @@ public final class LoadoutService implements Listener {
             if (free != null) selection.put(category, free.key());
         }
         if (downgraded) {
-            player.sendMessage(Component.text(
-                    "Your loadout was too expensive this life - swapped to the free tier.",
-                    NamedTextColor.YELLOW));
+            Branding.warning(player, "Your loadout was too expensive this life - swapped to the free tier.");
         }
         applyToInventory(player);
     }
@@ -216,9 +213,8 @@ public final class LoadoutService implements Listener {
         }
 
         if (anyDowngraded) {
-            player.sendMessage(Component.text(
-                    "Part of your loadout preset was too expensive this life - swapped to the free tier for those slots.",
-                    NamedTextColor.YELLOW));
+            Branding.warning(player,
+                    "Part of your loadout preset was too expensive this life - swapped to the free tier for those slots.");
         }
         applyToInventory(player);
     }

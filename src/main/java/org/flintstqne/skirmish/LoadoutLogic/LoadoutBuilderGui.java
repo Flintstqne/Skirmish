@@ -9,6 +9,7 @@ import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.flintstqne.skirmish.Utils.Branding;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -67,9 +68,8 @@ public final class LoadoutBuilderGui {
             pane.addItem(tierItem(player, entries.get(i)), i % WIDTH, 1 + i / WIDTH);
         }
         if (entries.size() > capacity) {
-            player.sendMessage(Component.text(
-                    "Category '" + tab.displayName() + "' has more tiers than the GUI can show ("
-                            + entries.size() + " of " + capacity + " shown).", NamedTextColor.RED));
+            Branding.error(player, "Category '" + tab.displayName() + "' has more tiers than the GUI can show ("
+                    + entries.size() + " of " + capacity + " shown).");
         }
 
         pane.addItem(myLoadoutsTabItem(player), WIDTH - 1, 0);
@@ -109,10 +109,10 @@ public final class LoadoutBuilderGui {
             if (!canSave) return;
             LoadoutPreset saved = presets.save(player, "Loadout " + (presets.list(player).size() + 1));
             if (saved == null) {
-                player.sendMessage(line("Couldn't save that preset — try again.", NamedTextColor.RED));
+                Branding.error(player, "Couldn't save that preset — try again.");
                 return;
             }
-            player.sendMessage(line("Saved as '" + saved.name() + "'.", NamedTextColor.GREEN));
+            Branding.success(player, "Saved as '" + saved.name() + "'.");
             if (presetsGui != null) presetsGui.open(player);
         });
     }
@@ -149,7 +149,7 @@ public final class LoadoutBuilderGui {
         return new GuiItem(stack, click -> {
             if (equipped) return;
             if (!loadouts.select(player, entry)) {
-                player.sendMessage(line("You can't afford " + entry.name() + " this life.", NamedTextColor.RED));
+                Branding.error(player, "You can't afford " + entry.name() + " this life.");
                 return;
             }
             open(player, entry.category());

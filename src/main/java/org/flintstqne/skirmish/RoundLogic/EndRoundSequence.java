@@ -8,6 +8,7 @@ import org.flintstqne.skirmish.CombatLogic.DeathSpectatorService;
 import org.flintstqne.skirmish.ConfigManager;
 import org.flintstqne.skirmish.Skirmish;
 import org.flintstqne.skirmish.TeamLogic.Team;
+import org.flintstqne.skirmish.Utils.Branding;
 import org.flintstqne.skirmish.VoteLogic.VoteGui;
 import org.flintstqne.skirmish.VoteLogic.VoteService;
 
@@ -84,8 +85,8 @@ public final class EndRoundSequence {
     private void announceMvp() {
         Player mvp = rounds.getMvp();
         if (mvp == null) return;
-        Component message = Component.text(
-                "MVP: " + mvp.getName() + " (" + rounds.getRoundKills(mvp) + " kills)", NamedTextColor.AQUA);
+        Component message = Branding.message(
+                "MVP: " + mvp.getName() + " (" + rounds.getRoundKills(mvp) + " kills)", Branding.INFO);
         plugin.getServer().getOnlinePlayers().forEach(player -> player.sendMessage(message));
     }
 

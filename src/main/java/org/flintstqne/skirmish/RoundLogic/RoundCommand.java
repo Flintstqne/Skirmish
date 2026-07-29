@@ -1,12 +1,11 @@
 package org.flintstqne.skirmish.RoundLogic;
 
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.util.StringUtil;
+import org.flintstqne.skirmish.Utils.Branding;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -27,47 +26,41 @@ public final class RoundCommand implements CommandExecutor, TabCompleter {
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command,
                              @NotNull String label, String[] args) {
         if (args.length == 0) {
-            sender.sendMessage(Component.text("/round start <mode> | /round end | /round status",
-                    NamedTextColor.YELLOW));
+            Branding.warning(sender, "/round start <mode> | /round end | /round status");
             return true;
         }
 
         switch (args[0].toLowerCase(Locale.ROOT)) {
             case "start" -> {
                 if (args.length < 2) {
-                    sender.sendMessage(Component.text("Playable modes: " + RoundService.PLAYABLE,
-                            NamedTextColor.YELLOW));
+                    Branding.warning(sender, "Playable modes: " + RoundService.PLAYABLE);
                     return true;
                 }
                 GamemodeType mode;
                 try {
                     mode = GamemodeType.valueOf(args[1].toUpperCase(Locale.ROOT));
                 } catch (IllegalArgumentException e) {
-                    sender.sendMessage(Component.text("Unknown gamemode '" + args[1] + "'.", NamedTextColor.RED));
+                    Branding.error(sender, "Unknown gamemode '" + args[1] + "'.");
                     return true;
                 }
                 if (!RoundService.PLAYABLE.contains(mode)) {
-                    sender.sendMessage(Component.text(mode + " isn't implemented yet. Playable: "
-                            + RoundService.PLAYABLE, NamedTextColor.RED));
+                    Branding.error(sender, mode + " isn't implemented yet. Playable: " + RoundService.PLAYABLE);
                     return true;
                 }
                 rounds.startRound(mode);
-                sender.sendMessage(Component.text("Started " + mode + ".", NamedTextColor.GREEN));
+                Branding.success(sender, "Started " + mode + ".");
             }
             case "end" -> {
                 if (!rounds.isActive()) {
-                    sender.sendMessage(Component.text("No round is running.", NamedTextColor.RED));
+                    Branding.error(sender, "No round is running.");
                     return true;
                 }
                 rounds.endRoundNow();
-                sender.sendMessage(Component.text("Ending round.", NamedTextColor.GREEN));
+                Branding.success(sender, "Ending round.");
             }
-            case "status" -> sender.sendMessage(Component.text(
-                    "State: " + rounds.getState() + " | Mode: " + rounds.getGamemode()
-                            + " | Time left: " + rounds.getSecondsRemaining() + "s",
-                    NamedTextColor.AQUA));
-            default -> sender.sendMessage(Component.text("/round start <mode> | /round end | /round status",
-                    NamedTextColor.YELLOW));
+            case "status" -> Branding.info(sender, "State: " + rounds.getState() + " | Mode: " + rounds.getGamemode()
+                    + " | Time left: " + rounds.getSecondsRemaining() + "s");
+            default -> Branding.warning(sender, "/round start <mode> | /round end | /round status");
         }
         return true;
     }

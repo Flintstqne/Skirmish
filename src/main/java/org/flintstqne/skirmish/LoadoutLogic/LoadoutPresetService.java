@@ -1,10 +1,9 @@
 package org.flintstqne.skirmish.LoadoutLogic;
 
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.entity.Player;
 import org.flintstqne.skirmish.ConfigManager;
 import org.flintstqne.skirmish.DatabaseManager;
+import org.flintstqne.skirmish.Utils.Branding;
 
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -90,9 +89,8 @@ public final class LoadoutPresetService {
             if (count >= config.getMaxSavedPresets()) return null;
             int id = db.createPreset(player.getUniqueId(), name, count, savable);
             if (!excluded.isEmpty()) {
-                player.sendMessage(Component.text(
-                        "Not saved (paid gear doesn't carry into a new life): " + String.join(", ", excluded),
-                        NamedTextColor.YELLOW));
+                Branding.warning(player,
+                        "Not saved (paid gear doesn't carry into a new life): " + String.join(", ", excluded));
             }
             return new LoadoutPreset(id, name, count, Map.copyOf(savable));
         } catch (SQLException e) {

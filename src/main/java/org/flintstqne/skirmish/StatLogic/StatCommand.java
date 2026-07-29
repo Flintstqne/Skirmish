@@ -2,6 +2,7 @@ package org.flintstqne.skirmish.StatLogic;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.command.Command;
@@ -10,6 +11,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 import org.bukkit.util.StringUtil;
+import org.flintstqne.skirmish.Utils.Branding;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -48,22 +50,22 @@ public final class StatCommand implements CommandExecutor, TabCompleter {
             try {
                 limit = Math.max(1, Math.min(25, Integer.parseInt(args[0])));
             } catch (NumberFormatException e) {
-                sender.sendMessage(Component.text("Usage: /history [count]", NamedTextColor.YELLOW));
+                Branding.warning(sender, "Usage: /history [count]");
                 return true;
             }
         }
 
         var rounds = stats.getRecentRounds(limit);
-        sender.sendMessage(Component.text("--- Recent rounds ---", NamedTextColor.GOLD));
+        sender.sendMessage(heading("Recent rounds"));
         if (rounds.isEmpty()) {
-            sender.sendMessage(Component.text("No rounds recorded yet.", NamedTextColor.GRAY));
+            Branding.send(sender, "No rounds recorded yet.");
             return true;
         }
         for (var round : rounds) {
             String when = TIMESTAMP.format(Instant.ofEpochMilli(round.startedAt()));
             String winner = round.winner() == null ? "Draw" : round.winner();
             sender.sendMessage(Component.text(when + "  " + round.gamemode() + "  "
-                    + round.finalScoreA() + "-" + round.finalScoreB() + "  Winner: " + winner, NamedTextColor.WHITE));
+                    + round.finalScoreA() + "-" + round.finalScoreB() + "  Winner: " + winner, Branding.HIGHLIGHT));
         }
         return true;
     }
@@ -75,56 +77,61 @@ public final class StatCommand implements CommandExecutor, TabCompleter {
         } else if (sender instanceof Player player) {
             target = player;
         } else {
-            sender.sendMessage(Component.text("Console must name a player: /stats <player>.", NamedTextColor.RED));
+            Branding.error(sender, "Console must name a player: /stats <player>.");
             return true;
         }
 
         PlayerStats s = stats.getStats(target);
-        sender.sendMessage(Component.text("--- " + s.name() + "'s stats ---", NamedTextColor.GOLD));
-        sender.sendMessage(line("Kills", s.kills(), NamedTextColor.GREEN));
-        sender.sendMessage(line("Deaths", s.deaths(), NamedTextColor.RED));
-        sender.sendMessage(line("Knife kills", s.knifeKills(), NamedTextColor.YELLOW));
-        sender.sendMessage(line("Objective points", s.objectivePoints(), NamedTextColor.AQUA));
-        sender.sendMessage(line("Rounds played", s.roundsPlayed(), NamedTextColor.GRAY));
-        sender.sendMessage(line("Rounds won", s.roundsWon(), NamedTextColor.GRAY));
+        sender.sendMessage(heading(s.name() + "'s stats"));
+        sender.sendMessage(line("Kills", s.kills(), Branding.SUCCESS));
+        sender.sendMessage(line("Deaths", s.deaths(), Branding.ERROR));
+        sender.sendMessage(line("Knife kills", s.knifeKills(), Branding.WARNING));
+        sender.sendMessage(line("Objective points", s.objectivePoints(), Branding.INFO));
+        sender.sendMessage(line("Rounds played", s.roundsPlayed(), Branding.BODY));
+        sender.sendMessage(line("Rounds won", s.roundsWon(), Branding.BODY));
         if (!s.winsByMode().isEmpty()) {
             String byMode = s.winsByMode().entrySet().stream()
                     .map(e -> e.getKey() + ": " + e.getValue())
                     .collect(Collectors.joining(", "));
-            sender.sendMessage(Component.text("Wins by mode: " + byMode, NamedTextColor.GRAY));
+            sender.sendMessage(Component.text("Wins by mode: " + byMode, Branding.BODY));
         }
         return true;
     }
 
     private boolean runLeaderboard(CommandSender sender, String[] args) {
         if (args.length < 1) {
-            sender.sendMessage(Component.text("/leaderboard <" + String.join("|", stats.getLeaderboardCategories())
-                    + ">", NamedTextColor.YELLOW));
+            Branding.warning(sender, "/leaderboard <" + String.join("|", stats.getLeaderboardCategories()) + ">");
             return true;
         }
 
         var result = stats.getLeaderboard(args[0], 10);
         if (result == null) {
-            sender.sendMessage(Component.text("Unknown category '" + args[0] + "'. Options: "
-                    + String.join(", ", stats.getLeaderboardCategories()), NamedTextColor.RED));
+            Branding.error(sender, "Unknown category '" + args[0] + "'. Options: "
+                    + String.join(", ", stats.getLeaderboardCategories()));
             return true;
         }
 
-        sender.sendMessage(Component.text("--- Leaderboard: " + args[0] + " ---", NamedTextColor.GOLD));
+        sender.sendMessage(heading("Leaderboard: " + args[0]));
         if (result.isEmpty()) {
-            sender.sendMessage(Component.text("No stats recorded yet.", NamedTextColor.GRAY));
+            Branding.send(sender, "No stats recorded yet.");
             return true;
         }
         int rank = 1;
         for (var row : result) {
-            sender.sendMessage(Component.text(rank + ". " + row.name() + " — " + row.value(), NamedTextColor.WHITE));
+            sender.sendMessage(Component.text(rank + ". " + row.name() + " — " + row.value(), Branding.HIGHLIGHT));
             rank++;
         }
         return true;
     }
 
+    /** Branded header for a multi-line report — the prefix goes once per block, not on every
+     * data line beneath it. */
+    private Component heading(String title) {
+        return Branding.prefix(Component.text(title, Branding.BRAND, TextDecoration.BOLD));
+    }
+
     private Component line(String label, int value, NamedTextColor color) {
-        return Component.text(label + ": ", NamedTextColor.GRAY).append(Component.text(value, color));
+        return Component.text(label + ": ", Branding.BODY).append(Component.text(value, color));
     }
 
     @Override

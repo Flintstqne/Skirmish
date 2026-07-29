@@ -1,7 +1,6 @@
 package org.flintstqne.skirmish.Utils;
 
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.flintstqne.skirmish.ConfigManager;
@@ -14,17 +13,16 @@ public final class KillFeedUtil {
 
     public static void broadcastKillFeed(ConfigManager config, Player killer, Player victim, String weaponTitle) {
         if (!config.isKillFeedEnabled()) return;
-        Component line = Component.text(killer.getName(), NamedTextColor.WHITE)
-                .append(Component.text(" ☠ ", NamedTextColor.RED))
-                .append(Component.text(weaponTitle, NamedTextColor.GRAY))
-                .append(Component.text(" ☠ ", NamedTextColor.RED))
-                .append(Component.text(victim.getName(), NamedTextColor.WHITE));
+        Component line = Branding.prefix(Component.text(killer.getName(), Branding.HIGHLIGHT)
+                .append(Component.text(" ☠ ", Branding.ERROR))
+                .append(Component.text(weaponTitle, Branding.BODY))
+                .append(Component.text(" ☠ ", Branding.ERROR))
+                .append(Component.text(victim.getName(), Branding.HIGHLIGHT)));
         Bukkit.getOnlinePlayers().forEach(p -> p.sendMessage(line));
     }
 
     public static void sendDeathRecap(ConfigManager config, Player victim, Player killer, String weaponTitle) {
         if (!config.isDeathRecapEnabled()) return;
-        victim.sendMessage(Component.text(
-                "Killed by " + killer.getName() + " with " + weaponTitle, NamedTextColor.RED));
+        Branding.error(victim, "Killed by " + killer.getName() + " with " + weaponTitle);
     }
 }
