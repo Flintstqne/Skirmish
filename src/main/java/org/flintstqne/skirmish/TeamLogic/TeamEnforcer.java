@@ -57,7 +57,16 @@ public final class TeamEnforcer implements Listener {
         // can get lost.
         Player player = event.getPlayer();
         plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-            if (player.isOnline()) promptOrRestore(player);
+            if (!player.isOnline()) return;
+            // The server emptied out between rounds and onSequenceFinished skipped starting
+            // a fresh one rather than clone a world for nobody — resume it now that someone's
+            // back. beginRound() places every online player once the new world is ready, so
+            // this join doesn't also need promptOrRestore.
+            if (rounds != null && rounds.isIdle()) {
+                rounds.startRound(rounds.getGamemode());
+                return;
+            }
+            promptOrRestore(player);
         }, 1L);
     }
 }

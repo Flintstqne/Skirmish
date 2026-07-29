@@ -66,6 +66,11 @@ public final class CombatListener implements Listener {
         if (!(event.getShooter() instanceof Player killer)) return;
         if (!(event.getVictim() instanceof Player victim)) return;
         if (killer.equals(victim)) return;
+        // Points, killstreaks, and the kill feed are round rewards, not just round-score —
+        // a kill landing during warmup (spawn protection blocks PvP, not movement/other damage)
+        // shouldn't bank any of them. recordKill/addTeamScore already self-guard on isActive();
+        // this covers the effects that didn't.
+        if (!rounds.isActive()) return;
         rounds.recordKillForMvp(killer);
         KillFeedUtil.broadcastKillFeed(config, killer, victim, event.getWeaponTitle());
         KillFeedUtil.sendDeathRecap(config, victim, killer, event.getWeaponTitle());

@@ -51,6 +51,9 @@ public final class GunGameListener implements Listener {
         if (!(event.getShooter() instanceof Player killer)) return;
         if (!(event.getVictim() instanceof Player victim)) return;
         if (killer.equals(victim)) return;
+        // Same reasoning as CombatListener: ladder promotion/demotion and the instant-win
+        // check are round rewards, not just round-score, so a warmup kill shouldn't touch them.
+        if (!rounds.isActive()) return;
         rounds.recordKillForMvp(killer);
         killstreaks.onKill(killer);
         KillFeedUtil.broadcastKillFeed(config, killer, victim, event.getWeaponTitle());

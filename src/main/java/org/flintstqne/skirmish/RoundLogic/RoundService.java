@@ -243,6 +243,16 @@ public final class RoundService {
         return warmupTask != null;
     }
 
+    /**
+     * True when no round is running and nothing is about to start one — the gap left by
+     * {@link #onSequenceFinished} skipping a restart when the server was empty at vote-end.
+     * Distinct from an ordinary {@link RoundState#WAITING} mid-warmup, which has a live
+     * {@link #warmupTask}.
+     */
+    public boolean isIdle() {
+        return state == RoundState.WAITING && warmupTask == null && !starting;
+    }
+
     /** Warmup's over — starts the real round timer and scoring. */
     private void activateRound() {
         warmupTask = null;
