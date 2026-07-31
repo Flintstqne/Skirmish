@@ -31,8 +31,10 @@ import org.flintstqne.skirmish.RoundLogic.EndRoundSequence;
 import org.flintstqne.skirmish.RoundLogic.RoundCommand;
 import org.flintstqne.skirmish.RoundLogic.RoundService;
 import org.flintstqne.skirmish.StatLogic.StatCommand;
+import org.flintstqne.skirmish.StatLogic.StatGui;
 import org.flintstqne.skirmish.StatLogic.StatListener;
 import org.flintstqne.skirmish.StatLogic.StatService;
+import org.flintstqne.skirmish.Utils.AfkService;
 import org.flintstqne.skirmish.Utils.KillstreakService;
 import org.flintstqne.skirmish.Utils.ScoreboardService;
 import org.flintstqne.skirmish.VoteLogic.VoteGui;
@@ -61,6 +63,7 @@ public final class Skirmish extends JavaPlugin {
     private RoundService roundService;
     private StatService statService;
     private ScoreboardService scoreboardService;
+    private AfkService afkService;
 
     @Override
     public void onEnable() {
@@ -144,6 +147,7 @@ public final class Skirmish extends JavaPlugin {
                 killstreakService);
         StatListener statListener = new StatListener(statService, roundService);
         scoreboardService = new ScoreboardService(this, configManager, roundService);
+        afkService = new AfkService(this, configManager, roundService);
 
         getServer().getPluginManager().registerEvents(spawnProtectionManager, this);
         getServer().getPluginManager().registerEvents(deathSpectatorService, this);
@@ -158,7 +162,9 @@ public final class Skirmish extends JavaPlugin {
         getServer().getPluginManager().registerEvents(teamEnforcer, this);
         getServer().getPluginManager().registerEvents(killstreakService, this);
         getServer().getPluginManager().registerEvents(scoreboardService, this);
+        getServer().getPluginManager().registerEvents(afkService, this);
         scoreboardService.start();
+        afkService.start();
 
         setExecutor("arena", new ArenaAdminCommand(arenaConfig));
         setExecutor("team", new TeamCommand(teamSelectGui, roundService));
@@ -166,7 +172,7 @@ public final class Skirmish extends JavaPlugin {
         setExecutor("loadouts", new LoadoutPresetCommand(loadoutPresetGui));
         setExecutor("round", new RoundCommand(roundService));
         setExecutor("admin", new AdminCommand(loadoutService, configManager, roundService, statService));
-        StatCommand statCommand = new StatCommand(statService);
+        StatCommand statCommand = new StatCommand(statService, new StatGui(statService));
         setExecutor("stats", statCommand);
         setExecutor("leaderboard", statCommand);
         setExecutor("history", statCommand);
@@ -183,6 +189,7 @@ public final class Skirmish extends JavaPlugin {
     @Override
     public void onDisable() {
         if (scoreboardService != null) scoreboardService.stop();
+        if (afkService != null) afkService.stop();
         // Dispose the round world copy — the template is never touched (design doc §7.3).
         if (roundService != null) roundService.shutdown();
         if (deathSpectatorService != null) deathSpectatorService.stopAll();

@@ -41,6 +41,8 @@ public final class ConfigManager {
         List<String> problems = new ArrayList<>();
         if (getRoundDurationMinutes() <= 0) problems.add("round.duration-minutes must be positive");
         if (getWarmupSeconds() < 0) problems.add("round.warmup-seconds can't be negative");
+        if (getMinPlayersToStart() < 1) problems.add("round.min-players-to-start must be at least 1");
+        if (getAfkTimeoutSeconds() <= 0) problems.add("afk.timeout-seconds must be positive");
         if (getImbalanceLockRatio() < 1.0) problems.add("team.imbalance-lock-ratio should be >= 1.0");
         if (getInvulnerabilitySeconds() < 0) problems.add("spawn-protection.invulnerability-seconds can't be negative");
         if (getSpawnZoneRadius() < 0) problems.add("spawn-protection.zone-radius-blocks can't be negative");
@@ -49,6 +51,7 @@ public final class ConfigManager {
         if (getSpectatorLockRadius() < 0) problems.add("death.spectator-lock-radius-blocks can't be negative");
         if (getRespawnSeconds() < 0) problems.add("death.respawn-seconds can't be negative");
         if (getMaxSavedPresets() <= 0) problems.add("kits.max-saved-presets must be positive");
+        if (getMultiKillWindowSeconds() <= 0) problems.add("killstreaks.multikill-window-seconds must be positive");
         for (GamemodeType mode : GamemodeType.values()) {
             if (mode != GamemodeType.GUN_GAME && getScoreThreshold(mode) <= 0) {
                 problems.add(mode.name().toLowerCase(Locale.ROOT) + ".score-threshold must be positive");
@@ -77,6 +80,11 @@ public final class ConfigManager {
     public int getRoundDurationMinutes() { return c().getInt("round.duration-minutes", 30); }
     public boolean scoreThresholdEndsRound() { return c().getBoolean("round.score-threshold-ends-round", true); }
     public int getWarmupSeconds() { return c().getInt("round.warmup-seconds", 10); }
+    public int getMinPlayersToStart() { return c().getInt("round.min-players-to-start", 1); }
+
+    // afk
+    public boolean isAfkKickEnabled() { return c().getBoolean("afk.kick-enabled", true); }
+    public int getAfkTimeoutSeconds() { return c().getInt("afk.timeout-seconds", 120); }
 
     // team
     public double getImbalanceLockRatio() { return c().getDouble("team.imbalance-lock-ratio", 1.5); }
@@ -97,6 +105,7 @@ public final class ConfigManager {
     public int getSpectatorLockRadius() { return c().getInt("death.spectator-lock-radius-blocks", 50); }
     public int getRespawnSeconds() { return c().getInt("death.respawn-seconds", 10); }
     public boolean isDeathRecapEnabled() { return c().getBoolean("death.show-death-recap", true); }
+    public boolean isFollowKillerEnabled() { return c().getBoolean("death.follow-killer-enabled", true); }
 
     // kill feed
     public boolean isKillFeedEnabled() { return c().getBoolean("kill-feed.enabled", true); }
@@ -105,6 +114,7 @@ public final class ConfigManager {
     public boolean isKillstreaksEnabled() { return c().getBoolean("killstreaks.enabled", true); }
     public boolean isKillstreakBonusPointsEnabled() { return c().getBoolean("killstreaks.bonus-points-enabled", false); }
     public int getKillstreakBonusPointsPerThreshold() { return c().getInt("killstreaks.bonus-points-per-threshold", 5); }
+    public int getMultiKillWindowSeconds() { return c().getInt("killstreaks.multikill-window-seconds", 4); }
 
     /** Streak length → callout name, ordered ascending. Empty if the section is missing/malformed. */
     public Map<Integer, String> getKillstreakThresholds() {

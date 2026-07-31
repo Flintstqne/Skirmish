@@ -25,4 +25,11 @@ public final class KillFeedUtil {
         if (!config.isDeathRecapEnabled()) return;
         Branding.error(victim, "Killed by " + killer.getName() + " with " + weaponTitle);
     }
+
+    /** Broadcasts once per round — call site decides "once" via {@code RoundService#claimFirstBlood}. */
+    public static void announceFirstBlood(Player killer) {
+        Component message = Branding.message(
+                "First blood: " + killer.getName() + "!", Branding.WARNING);
+        Bukkit.getOnlinePlayers().forEach(p -> p.sendMessage(message));
+    }
 }

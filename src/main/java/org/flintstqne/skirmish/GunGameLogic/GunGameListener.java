@@ -55,6 +55,8 @@ public final class GunGameListener implements Listener {
         // check are round rewards, not just round-score, so a warmup kill shouldn't touch them.
         if (!rounds.isActive()) return;
         rounds.recordKillForMvp(killer);
+        rounds.recordKiller(victim, killer);
+        if (rounds.claimFirstBlood()) KillFeedUtil.announceFirstBlood(killer);
         killstreaks.onKill(killer);
         KillFeedUtil.broadcastKillFeed(config, killer, victim, event.getWeaponTitle());
         KillFeedUtil.sendDeathRecap(config, victim, killer, event.getWeaponTitle());

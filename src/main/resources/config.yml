@@ -10,6 +10,15 @@ round:
   # before the countdown visually ends (a fresh invuln grant still lands exactly when the
   # round goes ACTIVE, but the one granted at placement could expire mid-countdown first).
   warmup-seconds: 10
+  # Auto-triggered round starts (boot, vote-sequence finish, a join resuming an idle round)
+  # wait for this many online players before cloning a world. /round start (admin) bypasses it.
+  min-players-to-start: 1
+
+# Kicks players idle (no movement/interaction/chat) during warmup or between rounds — never
+# mid-round, so holding an objective or a defensive position doesn't count as AFK.
+afk:
+  kick-enabled: true
+  timeout-seconds: 120
 
 team:
   imbalance-lock-ratio: 1.5
@@ -33,6 +42,9 @@ death:
   spectator-lock-radius-blocks: 50
   respawn-seconds: 10
   show-death-recap: true   # tells a dying player who killed them and with what (§11 item 4)
+  # A dying player watches their killer (chase-cam) instead of being locked to the death spot,
+  # when the killer's known and still online. Falls back to the locked-sphere behavior otherwise.
+  follow-killer-enabled: true
 
 kill-feed:
   enabled: true
@@ -43,6 +55,9 @@ killstreaks:
   enabled: true
   bonus-points-enabled: false   # per-life points are already a snowball risk — off by default
   bonus-points-per-threshold: 5
+  # Kills within this many seconds of each other count as one multi-kill (Double Kill, Triple
+  # Kill, ...) — a separate callout from the per-life streak thresholds below.
+  multikill-window-seconds: 4
   # Streak length -> callout name, broadcast to everyone when a player reaches it.
   thresholds:
     3: "Killing Spree"

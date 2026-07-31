@@ -28,9 +28,11 @@ public final class StatCommand implements CommandExecutor, TabCompleter {
             DateTimeFormatter.ofPattern("MM-dd HH:mm").withZone(ZoneId.systemDefault());
 
     private final StatService stats;
+    private final StatGui gui;
 
-    public StatCommand(StatService stats) {
+    public StatCommand(StatService stats, StatGui gui) {
         this.stats = stats;
+        this.gui = gui;
     }
 
     @Override
@@ -45,6 +47,10 @@ public final class StatCommand implements CommandExecutor, TabCompleter {
     }
 
     private boolean runHistory(CommandSender sender, String[] args) {
+        if (args.length == 0 && sender instanceof Player player) {
+            gui.openHistory(player);
+            return true;
+        }
         int limit = 10;
         if (args.length >= 1) {
             try {
@@ -100,7 +106,11 @@ public final class StatCommand implements CommandExecutor, TabCompleter {
 
     private boolean runLeaderboard(CommandSender sender, String[] args) {
         if (args.length < 1) {
-            Branding.warning(sender, "/leaderboard <" + String.join("|", stats.getLeaderboardCategories()) + ">");
+            if (sender instanceof Player player) {
+                gui.openLeaderboardMenu(player);
+            } else {
+                Branding.warning(sender, "/leaderboard <" + String.join("|", stats.getLeaderboardCategories()) + ">");
+            }
             return true;
         }
 

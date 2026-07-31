@@ -47,7 +47,7 @@ public final class RoundCommand implements CommandExecutor, TabCompleter {
                     Branding.error(sender, mode + " isn't implemented yet. Playable: " + RoundService.PLAYABLE);
                     return true;
                 }
-                rounds.startRound(mode);
+                rounds.forceStart(mode);
                 Branding.success(sender, "Started " + mode + ".");
             }
             case "end" -> {

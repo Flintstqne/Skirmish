@@ -72,6 +72,7 @@ public final class RoundService {
      * kept separate from teamScores/playerScores since those mean different things per mode
      * (KOTH/Domination mix in hold-ticks; Gun Game's win condition isn't kills at all). */
     private final Map<UUID, Integer> roundKills = new HashMap<>();
+    private boolean firstBloodClaimed;
     private long endsAtMillis;
     private long startedAtMillis;
     private BukkitTask timerTask;
@@ -137,6 +138,20 @@ public final class RoundService {
         roundKills.merge(killer.getUniqueId(), 1, Integer::sum);
     }
 
+    /** Passthrough so the kill listeners (which already hold a RoundService reference, not a
+     * DeathSpectatorService one) can feed the follow-killer spectator mode. */
+    public void recordKiller(Player victim, Player killer) {
+        spectators.recordKiller(victim, killer);
+    }
+
+    /** True the first time it's called each round — the caller broadcasts "First Blood" only
+     * then. Not a getter: calling it a second time deliberately can't re-trigger the message. */
+    public boolean claimFirstBlood() {
+        if (firstBloodClaimed) return false;
+        firstBloodClaimed = true;
+        return true;
+    }
+
     /** Most kills this round, or null if nobody's killed anyone or there's a tie (§11 item 7). */
     public Player getMvp() {
         UUID id = pickLeader(roundKills);
@@ -151,10 +166,18 @@ public final class RoundService {
     // ---- lifecycle ----------------------------------------------------------
 
     /**
-     * Clones a fresh arena world, then starts the round in it once it's loaded (§7.3).
-     * The world copy runs off the main thread, so the round begins a moment later.
+     * Clones a fresh arena world, then starts the round in it once it's loaded (§7.3). Waits
+     * for {@code round.min-players-to-start} rather than cloning a world for too few players —
+     * every auto-trigger (boot, vote-sequence finish, a join resuming an idle round) re-checks
+     * this on its own next call, so the round starts the moment enough players are online.
      */
     public void startRound(GamemodeType mode) {
+        if (plugin.getServer().getOnlinePlayers().size() < config.getMinPlayersToStart()) return;
+        forceStart(mode);
+    }
+
+    /** Admin override (/round start) — bypasses the player-count gate {@link #startRound} respects. */
+    public void forceStart(GamemodeType mode) {
         if (starting) return;
         cancelWarmup();
         if (state == RoundState.ACTIVE) endRoundNow();
@@ -185,6 +208,7 @@ public final class RoundService {
         teamScores.clear();
         playerScores.clear();
         roundKills.clear();
+        firstBloodClaimed = false;
         gunGame.resetAll();
         // Fresh teams every round (design doc §7.2 doesn't say teams persist across rounds,
         // and the arena itself is a fresh clone) — everyone gets prompted again below.

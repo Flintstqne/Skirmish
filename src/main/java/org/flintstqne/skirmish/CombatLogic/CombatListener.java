@@ -72,6 +72,8 @@ public final class CombatListener implements Listener {
         // this covers the effects that didn't.
         if (!rounds.isActive()) return;
         rounds.recordKillForMvp(killer);
+        rounds.recordKiller(victim, killer);
+        if (rounds.claimFirstBlood()) KillFeedUtil.announceFirstBlood(killer);
         KillFeedUtil.broadcastKillFeed(config, killer, victim, event.getWeaponTitle());
         KillFeedUtil.sendDeathRecap(config, victim, killer, event.getWeaponTitle());
         // Gun Game has its own win condition and no point economy — GunGameListener owns
