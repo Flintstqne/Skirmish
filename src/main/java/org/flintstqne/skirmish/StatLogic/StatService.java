@@ -14,13 +14,13 @@ import java.util.Set;
 import java.util.logging.Logger;
 
 /**
- * Lifetime stats and round history (design doc §7.10) — the persistent, cross-round
+ * Lifetime stats and round history (design doc §7.10) - the persistent, cross-round
  * counterpart to the ephemeral per-round scores {@code RoundService} already tracks. This is
  * the only class that touches {@code player_stats}/{@code round_history} (no separate
  * `StatDb`, per design doc §5); everything goes through the shared {@link DatabaseManager}.
  *
  * Writes happen synchronously on the main thread, same as every other DatabaseManager
- * caller in this plugin (loadout presets included) — the design doc calls for "async-batched"
+ * caller in this plugin (loadout presets included) - the design doc calls for "async-batched"
  * writes, but kills/deaths/round-ends are low-frequency events (nothing like Domination's
  * per-second tick), so synchronous local SQLite writes here cost nothing worth avoiding, and
  * skipping the batching avoids the only genuinely new kind of complexity this would add:
@@ -111,7 +111,7 @@ public final class StatService {
         return LEADERBOARD_COLUMNS.keySet();
     }
 
-    /** Recent rounds server-wide, most recent first — {@code round_history} has no per-player
+    /** Recent rounds server-wide, most recent first - {@code round_history} has no per-player
      * link (design doc §5.1), so this isn't scoped to any one player. */
     public List<DatabaseManager.RoundHistoryRow> getRecentRounds(int limit) {
         try {

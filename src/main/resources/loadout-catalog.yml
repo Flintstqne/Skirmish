@@ -1,53 +1,80 @@
-# Loadout catalog (design doc §7.5.1) — the single source of truth for what a saved
+# Loadout catalog (design doc §7.5.1) - the single source of truth for what a saved
 # preset key resolves to. Presets store the `key`, never a serialized ItemStack, so
 # rebalancing or renaming a weapon here never orphans a saved preset.
 #
+# Bedwars-shop model: buying adds to inventory, no cap, except guns and tools (only one of
+# each specific entry owned at a time - re-buying one you own is blocked) and armor (one
+# piece per body slot - buying a new piece for a slot you've already filled replaces it,
+# and auto-equips). See LoadoutService for the purchase rules themselves.
+#
 # Entry fields:
-#   key         required, unique within its category, stable — this is what presets store
+#   key         required, unique within its category, stable - this is what presets store
 #   name        display name in the builder GUI
 #   cost        per-life point cost; 0 = free tier, always affordable
 #   wm-weapon   WeaponMechanics weapon title (the top-level key of a WM weapon .yml)
 #   item        vanilla Material, for anything WM doesn't own (armor, potions, tools)
 #   amount      stack size for vanilla items (default 1)
 #   enchants    map of Enchantment name -> level, vanilla items only
+#   potion-type name of an org.bukkit.potion.PotionType constant (e.g. STRONG_HEALING for
+#               Instant Health II) - only meaningful when `item` is POTION/SPLASH_POTION/
+#               LINGERING_POTION; without it a potion material is just an effectless water
+#               bottle. See PotionType's javadoc for the full list (regular/LONG_/STRONG_
+#               variants of each effect).
 #
 # wm-weapon values below are the weapon titles that ship with WeaponMechanics by default.
 # If you rename or remove weapons in WM's config, update them here too.
 
 categories:
+  # WW1/WW2-only roster - modern weapons (AK-47, M4A1, AUG, Origin 12, AX-50, Desert Eagle,
+  # Uzi) were pulled from the shop. STG-44 picked up AK-47's old cost-0 slot since primary
+  # would otherwise have no free tier at all.
   primary:
-    - {key: ak47,    name: "AK-47",      wm-weapon: "AK_47",   cost: 0}
-    - {key: m4a1,    name: "M4A1",       wm-weapon: "M4A1",    cost: 120}
-    - {key: aug,     name: "AUG",        wm-weapon: "AUG",     cost: 150}
-    - {key: stg44,   name: "STG-44",     wm-weapon: "STG44",   cost: 150}
+    - {key: stg44,   name: "STG-44",     wm-weapon: "STG44",   cost: 0}
     - {key: thompson, name: "Thompson",  wm-weapon: "Thompson", cost: 180}
     - {key: mp40,     name: "MP40",       wm-weapon: "MP40",    cost: 170}
-    - {key: origin,  name: "Origin 12",  wm-weapon: "Origin_12", cost: 200}
     - {key: garand,  name: "M1 Garand",  wm-weapon: "M1_Garand", cost: 260}
     - {key: kar98k,  name: "Kar98k",     wm-weapon: "Kar98k",  cost: 300}
-    - {key: ax50,    name: "AX-50",      wm-weapon: "AX_50",   cost: 350}
     - {key: mg34,    name: "MG34",       wm-weapon: "MG34",    cost: 500}
     - {key: lewisgun, name: "Lewis Gun", wm-weapon: "Lewis_Gun", cost: 480}
 
   secondary:
     - {key: magnum,  name: ".357 Magnum", wm-weapon: "357_Magnum", cost: 0}
-    - {key: deagle,  name: "50 GS",       wm-weapon: "50_GS",      cost: 90}
     - {key: luger,   name: "Luger P08",   wm-weapon: "Luger",      cost: 110}
     - {key: m1911,   name: "M1911",       wm-weapon: "M1911",      cost: 100}
-    - {key: uzi,     name: "Uzi",         wm-weapon: "Uzi",        cost: 140}
 
+  # Two full armor sets, one piece per slot (helmet/chestplate/leggings/boots) - the free
+  # diamond set is every player's baseline every life; netherite is a per-piece paid upgrade.
+  # Slot is inferred from the `item` material's suffix (_HELMET/_CHESTPLATE/_LEGGINGS/_BOOTS),
+  # not a separate field - see LoadoutService.ArmorSlot.
   armor:
-    - {key: vest_none,  name: "No Vest",    item: AIR,               cost: 0}
-    - {key: vest_basic, name: "Basic Vest", item: LEATHER_CHESTPLATE, cost: 0,   enchants: {PROTECTION: 1}}
-    - {key: vest_heavy, name: "Heavy Vest", item: IRON_CHESTPLATE,    cost: 150, enchants: {PROTECTION: 2}}
-    - {key: vest_elite, name: "Elite Vest", item: DIAMOND_CHESTPLATE, cost: 400, enchants: {PROTECTION: 3}}
+    - {key: diamond_helmet,    name: "Diamond Helmet",    item: DIAMOND_HELMET,    cost: 0, enchants: {PROTECTION: 3, UNBREAKING: 2}}
+    - {key: diamond_chestplate, name: "Diamond Chestplate", item: DIAMOND_CHESTPLATE, cost: 0, enchants: {PROTECTION: 3, UNBREAKING: 2}}
+    - {key: diamond_leggings,  name: "Diamond Leggings",  item: DIAMOND_LEGGINGS,  cost: 0, enchants: {PROTECTION: 3, UNBREAKING: 2}}
+    - {key: diamond_boots,     name: "Diamond Boots",     item: DIAMOND_BOOTS,     cost: 0, enchants: {PROTECTION: 3, UNBREAKING: 2}}
+    - {key: netherite_helmet,    name: "Netherite Helmet",    item: NETHERITE_HELMET,    cost: 150, enchants: {PROTECTION: 4, UNBREAKING: 3, MENDING: 1}}
+    - {key: netherite_chestplate, name: "Netherite Chestplate", item: NETHERITE_CHESTPLATE, cost: 250, enchants: {PROTECTION: 4, UNBREAKING: 3, MENDING: 1}}
+    - {key: netherite_leggings,  name: "Netherite Leggings",  item: NETHERITE_LEGGINGS,  cost: 200, enchants: {PROTECTION: 4, UNBREAKING: 3, MENDING: 1}}
+    - {key: netherite_boots,     name: "Netherite Boots",     item: NETHERITE_BOOTS,     cost: 150, enchants: {PROTECTION: 4, UNBREAKING: 3, MENDING: 1}}
 
+  # Unlimited purchases - buying a potion always adds to your inventory, never blocked by
+  # already owning one (design doc bedwars-shop change). All splash - thrown, not drunk, so
+  # they can be used on an ally too, not just yourself.
   potion:
-    - {key: potion_none,  name: "None",           item: AIR,             cost: 0}
-    - {key: potion_heal,  name: "Splash Healing", item: SPLASH_POTION,   cost: 80}
-    - {key: potion_speed, name: "Speed Potion",   item: POTION,          cost: 60}
+    - {key: potion_heal,     name: "Splash Instant Health II", item: SPLASH_POTION, cost: 80, potion-type: STRONG_HEALING}
+    - {key: potion_speed,    name: "Splash Speed II",          item: SPLASH_POTION, cost: 70, potion-type: STRONG_SWIFTNESS}
+    - {key: potion_strength, name: "Splash Strength II",       item: SPLASH_POTION, cost: 90, potion-type: STRONG_STRENGTH}
+    - {key: potion_regen,    name: "Splash Regeneration II",   item: SPLASH_POTION, cost: 70, potion-type: STRONG_REGENERATION}
 
+  # Capped at one of each - like guns, re-buying one you already own is blocked (bedwars-shop
+  # change). Every cost-0 entry here (knife, pickaxe, shovel, cobblestone) is part of the
+  # default starting kit (LoadoutService.applyDefaults grants every free TOOL entry, not just
+  # one pick, same as ARMOR's full free set) - pickaxe/shovel/cobblestone are for digging and
+  # building cover (bots already dig with whatever's held when line-of-sight is blocked - see
+  # InfantryBot.js's tryDigBlockingBlock) rather than combat.
   tool:
-    - {key: tool_none,  name: "None",         item: AIR,   cost: 0}
-    - {key: knife,      name: "Combat Knife", wm-weapon: "Combat_Knife", cost: 0}
-    - {key: grenade,    name: "Grenade",      wm-weapon: "Grenade",      cost: 100, amount: 2}
+    - {key: knife,       name: "Combat Knife", wm-weapon: "Combat_Knife", cost: 0}
+    - {key: grenade,     name: "Grenade",      wm-weapon: "Grenade",      cost: 100, amount: 2}
+    - {key: flashbang,   name: "Flashbang",    wm-weapon: "Flashbang",    cost: 90, amount: 2}
+    - {key: pickaxe,     name: "Pickaxe",      item: DIAMOND_PICKAXE,     cost: 0, enchants: {EFFICIENCY: 5, UNBREAKING: 3}}
+    - {key: shovel,      name: "Shovel",       item: DIAMOND_SHOVEL,      cost: 0, enchants: {EFFICIENCY: 5, UNBREAKING: 3}}
+    - {key: cobblestone, name: "Cobblestone",  item: COBBLESTONE,         cost: 0, amount: 64}

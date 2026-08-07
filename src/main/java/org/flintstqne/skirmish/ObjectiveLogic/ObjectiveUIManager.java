@@ -13,16 +13,16 @@ import org.flintstqne.skirmish.Skirmish;
 import org.flintstqne.skirmish.TeamLogic.Team;
 
 /**
- * Objective HUD shared across capture-point gamemodes (design doc §8.1/§8.2 — built for
+ * Objective HUD shared across capture-point gamemodes (design doc §8.1/§8.2 - built for
  * KOTH first, meant to carry over to Domination without change): a compass pointing at the
  * objective, and a boss bar showing who holds it and how close the round is to ending.
  *
- * Uses {@link Player#setCompassTarget} rather than a custom waypoint renderer — the design
+ * Uses {@link Player#setCompassTarget} rather than a custom waypoint renderer - the design
  * doc left the exact HUD mechanism unspecified pending API research; the vanilla compass
  * needs no extra rendering code and works on every Paper version.
  *
  * Implements {@link Listener} so a mid-round joiner gets caught up immediately rather than
- * waiting for the next round (§11 QoL) — register the instance in {@code onEnable} alongside
+ * waiting for the next round (§11 QoL) - register the instance in {@code onEnable} alongside
  * every other listener.
  */
 public final class ObjectiveUIManager implements Listener {
@@ -50,6 +50,17 @@ public final class ObjectiveUIManager implements Listener {
         if (bossBar == null) return;
         bossBar.addPlayer(event.getPlayer());
         event.getPlayer().setCompassTarget(objective);
+    }
+
+    /** Moves the compass target to a new location without tearing down the boss bar - used by
+     * KOTH's hardpoint-style rotation, where the objective itself relocates mid-round but the
+     * bar (and everyone already subscribed to it) should carry over without a visible blip. */
+    public void retarget(Location newObjective) {
+        if (bossBar == null) return;
+        this.objective = newObjective;
+        for (Player player : plugin.getServer().getOnlinePlayers()) {
+            player.setCompassTarget(newObjective);
+        }
     }
 
     /** @param progress 0.0-1.0 toward the score threshold; clamped defensively. */

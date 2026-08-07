@@ -5,18 +5,18 @@ import java.util.Map;
 
 /**
  * Hand-rolled (de)serializer for the `wins_by_mode` column's flat {@code {"KOTH":3,"TDM":5}}
- * blob (design doc §5.1) — a single-level string-to-int map is well within what a few lines
+ * blob (design doc §5.1) - a single-level string-to-int map is well within what a few lines
  * can do, so no JSON library was added just for this one column.
  *
  * Only ever reads back what {@link #serialize} itself wrote, so it doesn't need to handle
- * arbitrary/untrusted JSON — just this exact shape.
+ * arbitrary/untrusted JSON - just this exact shape.
  *
  * {@code serialize} stamps a {@code v1:} prefix so a future format change has somewhere to
  * branch from; {@code parse} strips the prefix if present and falls back to the original
  * unversioned/bare-JSON shape otherwise, so rows written before this existed still read fine.
  *
  * Public (not package-private) because {@code DatabaseManager} needs it to read/write the
- * column — the same cross-package relationship it already has with {@code LoadoutCatalog}.
+ * column - the same cross-package relationship it already has with {@code LoadoutCatalog}.
  */
 public final class WinsByMode {
 
@@ -54,7 +54,7 @@ public final class WinsByMode {
             try {
                 map.put(key, Integer.parseInt(value));
             } catch (NumberFormatException ignored) {
-                // Malformed entry — skip it rather than fail the whole read.
+                // Malformed entry - skip it rather than fail the whole read.
             }
         }
         return map;

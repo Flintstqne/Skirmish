@@ -5,7 +5,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.flintstqne.skirmish.ConfigManager;
 
-/** Kill feed broadcast + death recap (§11 items 3-4) — both are formatting off the same
+/** Kill feed broadcast + death recap (§11 items 3-4) - both are formatting off the same
  * killer/victim/weapon triple every kill path (CombatListener, GunGameListener) already has. */
 public final class KillFeedUtil {
 
@@ -26,7 +26,7 @@ public final class KillFeedUtil {
         Branding.error(victim, "Killed by " + killer.getName() + " with " + weaponTitle);
     }
 
-    /** Broadcasts once per round — call site decides "once" via {@code RoundService#claimFirstBlood}. */
+    /** Broadcasts once per round - call site decides "once" via {@code RoundService#claimFirstBlood}. */
     public static void announceFirstBlood(Player killer) {
         Component message = Branding.message(
                 "First blood: " + killer.getName() + "!", Branding.WARNING);

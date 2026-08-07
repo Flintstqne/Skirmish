@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Random;
 
 /**
- * Random-spawn selection for gamemodes with no fixed team spawns — FFA now, Gun Game later
+ * Random-spawn selection for gamemodes with no fixed team spawns - FFA now, Gun Game later
  * (design doc §8.4/§8.5, both explicitly "random spawns"). Picks a pool point that clears
  * {@code min-spawn-distance-from-players} from everyone currently occupying the arena;
  * falls back to a random pick if nothing clears it rather than refusing to spawn anyone.
@@ -39,7 +39,7 @@ public final class RandomSpawnSelector {
         for (Location candidate : candidates) {
             if (isFarEnough(toPoint(candidate), occupiedPoints, minDistanceBlocks)) return candidate;
         }
-        // Nobody clears the bar (few spawns, many players) — spawn somewhere over refusing to.
+        // Nobody clears the bar (few spawns, many players) - spawn somewhere over refusing to.
         return candidates.get(0);
     }
 

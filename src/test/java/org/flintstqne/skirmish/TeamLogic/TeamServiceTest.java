@@ -24,9 +24,9 @@ class TeamServiceTest {
 
     @Test
     void fullerSideLocksOnlyOnceRatioIsMet() {
-        // 6v4 = 1.5 exactly — the doc's own worked example, locked.
+        // 6v4 = 1.5 exactly - the doc's own worked example, locked.
         assertTrue(TeamService.isLocked(6, 4, RATIO));
-        // 5v4 = 1.25 — ahead, but not far enough to lock.
+        // 5v4 = 1.25 - ahead, but not far enough to lock.
         assertFalse(TeamService.isLocked(5, 4, RATIO));
     }
 
@@ -34,7 +34,7 @@ class TeamServiceTest {
     void firstJoinerDoesNotLockAnEmptyServer() {
         // 0 vs 0: joining either side must stay open, or nobody can ever join.
         assertFalse(TeamService.isLocked(0, 0, RATIO));
-        // 1 vs 0: any lead over an empty team is infinite ratio — locked.
+        // 1 vs 0: any lead over an empty team is infinite ratio - locked.
         assertTrue(TeamService.isLocked(1, 0, RATIO));
     }
 

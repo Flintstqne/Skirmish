@@ -33,7 +33,7 @@ import java.util.UUID;
  * locked to a sphere around the death location for {@code death.respawn-seconds},
  * and the free-roam end-of-round variant with no lock.
  *
- * Deliberately not vanilla GameMode.SPECTATOR — spectators phase through blocks, and
+ * Deliberately not vanilla GameMode.SPECTATOR - spectators phase through blocks, and
  * the ported Trenched behaviour blocks that.
  */
 public final class DeathSpectatorService implements Listener {
@@ -55,7 +55,7 @@ public final class DeathSpectatorService implements Listener {
     }
 
     /**
-     * Set post-construction — RoundService takes a DeathSpectatorService, so this breaks the
+     * Set post-construction - RoundService takes a DeathSpectatorService, so this breaks the
      * cycle. Once set, respawn goes through {@link RoundService#preparePlayer}, which is
      * gamemode-aware about spawn location (team spawn vs. FFA random point, §8.4); without
      * it, respawn falls back to a fixed team spawn only, which is wrong for FFA.
@@ -68,12 +68,12 @@ public final class DeathSpectatorService implements Listener {
         return spectating.containsKey(player.getUniqueId());
     }
 
-    /** Free-roam variant — whole arena, no radius lock, no auto-exit (§7.8). */
+    /** Free-roam variant - whole arena, no radius lock, no auto-exit (§7.8). */
     public void startFreeRoam(Player player) {
         apply(player, player.getLocation(), null);
     }
 
-    /** Recorded by CombatListener/GunGameListener at the moment of a kill — see {@link #lastKiller}. */
+    /** Recorded by CombatListener/GunGameListener at the moment of a kill - see {@link #lastKiller}. */
     public void recordKiller(Player victim, Player killer) {
         lastKiller.put(victim.getUniqueId(), killer.getUniqueId());
     }
@@ -95,7 +95,7 @@ public final class DeathSpectatorService implements Listener {
         plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
             if (!player.isOnline() || !isSpectating(player)) return;
             stop(player);
-            // Gear goes back on here, not at the fake respawn above — while spectating,
+            // Gear goes back on here, not at the fake respawn above - while spectating,
             // apply() strips the inventory so a dead player visibly has nothing (see below).
             // rounds is always set by Skirmish.onEnable() before any player can die.
             rounds.preparePlayer(player);
@@ -141,7 +141,7 @@ public final class DeathSpectatorService implements Listener {
         if (state == null) return;
         player.setGameMode(state.previousMode());
         player.setFlying(false);
-        // CREATIVE grants flight on its own — forcing it off here would strip it and
+        // CREATIVE grants flight on its own - forcing it off here would strip it and
         // Bukkit won't hand it back automatically once the gamemode is already set.
         player.setAllowFlight(state.previousMode() == GameMode.CREATIVE);
         player.setCollidable(true);
@@ -168,7 +168,7 @@ public final class DeathSpectatorService implements Listener {
         player.setCollidable(false);
         player.getActivePotionEffects().forEach(effect -> player.removePotionEffect(effect.getType()));
 
-        // A dead/spectating player has nothing to fight with — inventory should show it.
+        // A dead/spectating player has nothing to fight with - inventory should show it.
         player.getInventory().clear();
         // clear() skips armor slots (same Bukkit gotcha as LoadoutService#applyToInventory).
         player.getInventory().setChestplate(null);
@@ -176,6 +176,14 @@ public final class DeathSpectatorService implements Listener {
         for (Player other : plugin.getServer().getOnlinePlayers()) {
             if (!other.equals(player)) other.hidePlayer(plugin, player);
         }
+    }
+
+    // Loadouts are re-granted from the preset/catalog every respawn (design doc §5.1), not
+    // looted - dropping them on death would just litter the map with gear nobody can use
+    // (loadout keys aren't ItemStacks another player can pick up and equip through Skirmish).
+    @EventHandler
+    public void onDeathClearDrops(PlayerDeathEvent event) {
+        event.getDrops().clear();
     }
 
     @EventHandler(priority = EventPriority.MONITOR)

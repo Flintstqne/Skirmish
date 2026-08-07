@@ -18,9 +18,9 @@ import org.flintstqne.skirmish.Utils.KillFeedUtil;
 import org.flintstqne.skirmish.Utils.KillstreakService;
 
 /**
- * Friendly fire and kill points (design doc §7.7).
+ * Friendly fire and kill Merit (design doc §7.7).
  *
- * Friendly fire is cancelled as a hard rule, not a config toggle — there is deliberately
+ * Friendly fire is cancelled as a hard rule, not a config toggle - there is deliberately
  * no switch for it. Both damage paths are covered: WeaponMechanics' own
  * {@link WeaponDamageEntityEvent} for guns, and vanilla {@link EntityDamageByEntityEvent}
  * for melee and anything WM doesn't route.
@@ -66,7 +66,7 @@ public final class CombatListener implements Listener {
         if (!(event.getShooter() instanceof Player killer)) return;
         if (!(event.getVictim() instanceof Player victim)) return;
         if (killer.equals(victim)) return;
-        // Points, killstreaks, and the kill feed are round rewards, not just round-score —
+        // Merit, killstreaks, and the kill feed are round rewards, not just round-score -
         // a kill landing during warmup (spawn protection blocks PvP, not movement/other damage)
         // shouldn't bank any of them. recordKill/addTeamScore already self-guard on isActive();
         // this covers the effects that didn't.
@@ -76,16 +76,16 @@ public final class CombatListener implements Listener {
         if (rounds.claimFirstBlood()) KillFeedUtil.announceFirstBlood(killer);
         KillFeedUtil.broadcastKillFeed(config, killer, victim, event.getWeaponTitle());
         KillFeedUtil.sendDeathRecap(config, victim, killer, event.getWeaponTitle());
-        // Gun Game has its own win condition and no point economy — GunGameListener owns
-        // this kill entirely, so awarding shop points here would just be a confusing
-        // "+10 pts" message with no shop to spend it in.
+        // Gun Game has its own win condition and no Merit economy - GunGameListener owns
+        // this kill entirely, so awarding shop Merit here would just be a confusing
+        // "+10 Merit" message with no shop to spend it in.
         if (rounds.getGamemode() == GamemodeType.GUN_GAME) return;
 
-        int points = config.getKillPoints();
-        loadouts.addPoints(killer, points);
+        int merit = config.getKillMerit();
+        loadouts.addMerit(killer, merit);
         rounds.recordKill(killer);
         killstreaks.onKill(killer);
         killer.sendActionBar(Component.text(
-                "Killed " + victim.getName() + "  +" + points + " pts", NamedTextColor.GREEN));
+                "Killed " + victim.getName() + "  +" + merit + " Merit", NamedTextColor.GREEN));
     }
 }

@@ -21,6 +21,7 @@ import org.flintstqne.skirmish.Skirmish;
 import org.flintstqne.skirmish.StatLogic.StatService;
 import org.flintstqne.skirmish.TeamLogic.Team;
 import org.flintstqne.skirmish.Utils.Branding;
+import org.flintstqne.skirmish.TeamLogic.TeamColorService;
 import org.flintstqne.skirmish.TeamLogic.TeamEnforcer;
 import org.flintstqne.skirmish.TeamLogic.TeamService;
 
@@ -37,7 +38,7 @@ import java.util.UUID;
  * WAITING → ACTIVE → ENDING → WAITING and decides when a round is over:
  * either a team hits {@code <mode>.score-threshold} or the timer runs out.
  *
- * Which subsystems are live depends on the current {@link GamemodeType} — that
+ * Which subsystems are live depends on the current {@link GamemodeType} - that
  * routing happens in {@link #applyGamemodeRules()}.
  */
 public final class RoundService {
@@ -59,6 +60,7 @@ public final class RoundService {
     private final RandomSpawnSelector randomSpawns;
     private final GunGameService gunGame;
     private final StatService stats;
+    private final TeamColorService teamColors;
 
     private EndRoundSequence endRoundSequence;
     private HillObjective hillObjective;
@@ -68,7 +70,7 @@ public final class RoundService {
     private GamemodeType gamemode = GamemodeType.TDM;
     private final Map<Team, Integer> teamScores = new EnumMap<>(Team.class);
     private final Map<UUID, Integer> playerScores = new HashMap<>();
-    /** Kills this round, regardless of gamemode/team — the MVP/recap metric (§11 item 7),
+    /** Kills this round, regardless of gamemode/team - the MVP/recap metric (§11 item 7),
      * kept separate from teamScores/playerScores since those mean different things per mode
      * (KOTH/Domination mix in hold-ticks; Gun Game's win condition isn't kills at all). */
     private final Map<UUID, Integer> roundKills = new HashMap<>();
@@ -83,7 +85,8 @@ public final class RoundService {
                         LoadoutPresetService loadoutPresets, SpawnProtectionManager spawnProtection,
                         DeathSpectatorService spectators, WorldManager worlds,
                         BorderWallRenderer borderWallRenderer, TeamEnforcer teamEnforcer,
-                        RandomSpawnSelector randomSpawns, GunGameService gunGame, StatService stats) {
+                        RandomSpawnSelector randomSpawns, GunGameService gunGame, StatService stats,
+                        TeamColorService teamColors) {
         this.plugin = plugin;
         this.config = config;
         this.teams = teams;
@@ -97,13 +100,14 @@ public final class RoundService {
         this.borderWallRenderer = borderWallRenderer;
         this.teamEnforcer = teamEnforcer;
         this.randomSpawns = randomSpawns;
+        this.teamColors = teamColors;
     }
 
     public void setEndRoundSequence(EndRoundSequence endRoundSequence) {
         this.endRoundSequence = endRoundSequence;
     }
 
-    /** Set post-construction — HillObjective needs a RoundService reference to score hold-ticks. */
+    /** Set post-construction - HillObjective needs a RoundService reference to score hold-ticks. */
     public void setHillObjective(HillObjective hillObjective) {
         this.hillObjective = hillObjective;
     }
@@ -126,13 +130,13 @@ public final class RoundService {
         return playerScores.getOrDefault(player.getUniqueId(), 0);
     }
 
-    /** Raw kill count this round, independent of team/win-condition — see {@link #roundKills}. */
+    /** Raw kill count this round, independent of team/win-condition - see {@link #roundKills}. */
     public int getRoundKills(Player player) {
         return roundKills.getOrDefault(player.getUniqueId(), 0);
     }
 
     /** Called by every kill path (TDM/KOTH/Domination/FFA via CombatListener, Gun Game via
-     * GunGameListener) purely for the end-of-round MVP recap — not a win condition. */
+     * GunGameListener) purely for the end-of-round MVP recap - not a win condition. */
     public void recordKillForMvp(Player killer) {
         if (!isActive()) return;
         roundKills.merge(killer.getUniqueId(), 1, Integer::sum);
@@ -144,7 +148,7 @@ public final class RoundService {
         spectators.recordKiller(victim, killer);
     }
 
-    /** True the first time it's called each round — the caller broadcasts "First Blood" only
+    /** True the first time it's called each round - the caller broadcasts "First Blood" only
      * then. Not a getter: calling it a second time deliberately can't re-trigger the message. */
     public boolean claimFirstBlood() {
         if (firstBloodClaimed) return false;
@@ -167,7 +171,7 @@ public final class RoundService {
 
     /**
      * Clones a fresh arena world, then starts the round in it once it's loaded (§7.3). Waits
-     * for {@code round.min-players-to-start} rather than cloning a world for too few players —
+     * for {@code round.min-players-to-start} rather than cloning a world for too few players -
      * every auto-trigger (boot, vote-sequence finish, a join resuming an idle round) re-checks
      * this on its own next call, so the round starts the moment enough players are online.
      */
@@ -176,7 +180,7 @@ public final class RoundService {
         forceStart(mode);
     }
 
-    /** Admin override (/round start) — bypasses the player-count gate {@link #startRound} respects. */
+    /** Admin override (/round start) - bypasses the player-count gate {@link #startRound} respects. */
     public void forceStart(GamemodeType mode) {
         if (starting) return;
         cancelWarmup();
@@ -187,7 +191,7 @@ public final class RoundService {
             starting = false;
             if (world == null) {
                 state = RoundState.WAITING;
-                broadcast(Component.text("Could not prepare the arena — round cancelled. "
+                broadcast(Component.text("Could not prepare the arena - round cancelled. "
                         + "Check the console.", NamedTextColor.RED));
                 return;
             }
@@ -200,7 +204,7 @@ public final class RoundService {
     /**
      * Places and gears everyone, then holds in {@link RoundState#WAITING} for
      * {@code round.warmup-seconds} (design doc §11 item 1) before the round actually goes
-     * live — a visible countdown, not the instantaneous pass-through this state used to be.
+     * live - a visible countdown, not the instantaneous pass-through this state used to be.
      */
     private void beginRound(GamemodeType mode) {
         gamemode = mode;
@@ -210,9 +214,13 @@ public final class RoundService {
         roundKills.clear();
         firstBloodClaimed = false;
         gunGame.resetAll();
+        // Merit is round-scoped, not per-life (design doc §7.4, revised) - bank it across
+        // deaths within a round, reset only when the next one starts.
+        loadouts.resetAll();
         // Fresh teams every round (design doc §7.2 doesn't say teams persist across rounds,
-        // and the arena itself is a fresh clone) — everyone gets prompted again below.
+        // and the arena itself is a fresh clone) - everyone gets prompted again below.
         teams.clearAll();
+        teamColors.clearAll();
 
         applyGamemodeRules();
         borderWallRenderer.startForActiveRound();
@@ -230,7 +238,7 @@ public final class RoundService {
         if (warmup <= 0) {
             activateRound();
         } else {
-            broadcast(Component.text(mode.name() + " starting in " + warmup + "s — get ready.", NamedTextColor.YELLOW));
+            broadcast(Component.text(mode.name() + " starting in " + warmup + "s - get ready.", NamedTextColor.YELLOW));
             scheduleWarmupTick(warmup);
         }
     }
@@ -268,7 +276,7 @@ public final class RoundService {
     }
 
     /**
-     * True when no round is running and nothing is about to start one — the gap left by
+     * True when no round is running and nothing is about to start one - the gap left by
      * {@link #onSequenceFinished} skipping a restart when the server was empty at vote-end.
      * Distinct from an ordinary {@link RoundState#WAITING} mid-warmup, which has a live
      * {@link #warmupTask}.
@@ -277,7 +285,7 @@ public final class RoundService {
         return state == RoundState.WAITING && warmupTask == null && !starting;
     }
 
-    /** Warmup's over — starts the real round timer and scoring. */
+    /** Warmup's over - starts the real round timer and scoring. */
     private void activateRound() {
         warmupTask = null;
         state = RoundState.ACTIVE;
@@ -285,13 +293,13 @@ public final class RoundService {
         endsAtMillis = startedAtMillis + config.getRoundDurationMinutes() * 60_000L;
 
         // A fresh grace period exactly as combat opens, on top of whatever preparePlayer
-        // already granted at placement — covers a warmup longer than the configured
+        // already granted at placement - covers a warmup longer than the configured
         // invulnerability-seconds without needing a separate "is warmup over" damage gate.
         for (Player player : plugin.getServer().getOnlinePlayers()) {
             spawnProtection.grantInvulnerability(player);
         }
 
-        broadcast(Component.text("FIGHT! " + gamemode.name() + " — first to "
+        broadcast(Component.text("FIGHT! " + gamemode.name() + " - first to "
                 + config.getScoreThreshold(gamemode) + " wins.", NamedTextColor.GREEN));
         startTimer();
     }
@@ -301,7 +309,7 @@ public final class RoundService {
         player.teleport(resolveSpawn(player));
         player.setHealth(player.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH).getValue());
         player.setFoodLevel(20);
-        // Gun Game has no loadout shop (loadouts-enabled: false) — its ladder tier is the
+        // Gun Game has no loadout shop (loadouts-enabled: false) - its ladder tier is the
         // gear, not a preset or purchase, so it re-equips through GunGameService instead.
         if (gamemode == GamemodeType.GUN_GAME) {
             gunGame.equip(player);
@@ -320,7 +328,7 @@ public final class RoundService {
         return worlds.hasActiveWorld() ? worlds.getActiveWorld().getSpawnLocation() : player.getWorld().getSpawnLocation();
     }
 
-    /** Everyone actively playing right now, for FFA spawn spacing — not the player being placed. */
+    /** Everyone actively playing right now, for FFA spawn spacing - not the player being placed. */
     private List<Location> occupiedLocations(Player excluding) {
         List<Location> occupied = new ArrayList<>();
         for (Player other : plugin.getServer().getOnlinePlayers()) {
@@ -379,7 +387,7 @@ public final class RoundService {
     }
 
     /**
-     * Adds to a team's round score from any source — kills (§8.3), KOTH hold-ticks
+     * Adds to a team's round score from any source - kills (§8.3), KOTH hold-ticks
      * ({@link HillObjective}, §8.1), or Domination zone-ticks ({@link DominationObjective},
      * §8.2) all feed the same score and the same threshold check.
      */
@@ -399,7 +407,7 @@ public final class RoundService {
     }
 
     /**
-     * Ends the round with no specific winner in mind (timer expiry, or an admin forcing it) —
+     * Ends the round with no specific winner in mind (timer expiry, or an admin forcing it) -
      * routes to whichever of {@link #endRound}/{@link #endRoundForPlayer} the current
      * gamemode actually uses, so callers don't have to know which one applies.
      */
@@ -456,7 +464,7 @@ public final class RoundService {
         state = RoundState.ENDING;
         stopTimer();
         cancelWarmup();
-        // Free-roam spectators get the whole arena, no lock (§7.8) — the wall is round-only.
+        // Free-roam spectators get the whole arena, no lock (§7.8) - the wall is round-only.
         borderWallRenderer.stop();
         if (hillObjective != null) hillObjective.stop();
         if (dominationObjective != null) dominationObjective.stop();
@@ -479,7 +487,7 @@ public final class RoundService {
 
     /**
      * Pure highest-value pick from a score map, split out so it's testable without Bukkit:
-     * null on an empty map or an outright tie (draw) — a later equal score breaks a lead,
+     * null on an empty map or an outright tie (draw) - a later equal score breaks a lead,
      * it doesn't win one back.
      */
     static UUID pickLeader(Map<UUID, Integer> scores) {
@@ -505,7 +513,7 @@ public final class RoundService {
         startRound(next);
     }
 
-    /** Disposes the round world on disable — no diff to replay, the copy just goes away (§7.3). */
+    /** Disposes the round world on disable - no diff to replay, the copy just goes away (§7.3). */
     public void shutdown() {
         stopTimer();
         cancelWarmup();

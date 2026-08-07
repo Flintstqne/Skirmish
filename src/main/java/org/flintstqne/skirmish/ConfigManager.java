@@ -13,7 +13,7 @@ import java.util.TreeMap;
 
 /**
  * Typed access to config.yml (tuning). Map data lives in
- * {@link org.flintstqne.skirmish.MapLogic.ArenaConfig} (arena.yml) — the two-tier
+ * {@link org.flintstqne.skirmish.MapLogic.ArenaConfig} (arena.yml) - the two-tier
  * split from the design doc §6 is deliberate; don't merge them.
  */
 public final class ConfigManager {
@@ -34,7 +34,7 @@ public final class ConfigManager {
     /**
      * Logs every out-of-range value in one pass at startup/reload, rather than a round
      * discovering them one at a time (e.g. a negative timer silently producing a round that
-     * never ends). Doesn't block startup — every getter already has a sane hard-coded default
+     * never ends). Doesn't block startup - every getter already has a sane hard-coded default
      * via {@code getInt}/{@code getBoolean}, so a bad value just gets flagged, not fatal.
      */
     private void validate() {
@@ -46,8 +46,8 @@ public final class ConfigManager {
         if (getImbalanceLockRatio() < 1.0) problems.add("team.imbalance-lock-ratio should be >= 1.0");
         if (getInvulnerabilitySeconds() < 0) problems.add("spawn-protection.invulnerability-seconds can't be negative");
         if (getSpawnZoneRadius() < 0) problems.add("spawn-protection.zone-radius-blocks can't be negative");
-        if (getKillPoints() < 0) problems.add("points.kill can't be negative");
-        if (getStartingPoints() < 0) problems.add("loadout.starting-points can't be negative");
+        if (getKillMerit() < 0) problems.add("merit.kill can't be negative");
+        if (getStartingMerit() < 0) problems.add("loadout.starting-merit can't be negative");
         if (getSpectatorLockRadius() < 0) problems.add("death.spectator-lock-radius-blocks can't be negative");
         if (getRespawnSeconds() < 0) problems.add("death.respawn-seconds can't be negative");
         if (getMaxSavedPresets() <= 0) problems.add("kits.max-saved-presets must be positive");
@@ -58,12 +58,16 @@ public final class ConfigManager {
             }
         }
         if (getKothCaptureRadius() <= 0) problems.add("koth.capture-radius-blocks must be positive");
+        if (getKothHillRotationSeconds() <= 0) problems.add("koth.hill-rotation-seconds must be positive");
         if (getDominationPointCount() <= 0) problems.add("domination.capture-point-count must be positive");
         if (getDominationCaptureRadius() <= 0) problems.add("domination.capture-radius-blocks must be positive");
+        if (getDominationCaptureTimeSeconds() <= 0) problems.add("domination.capture-time-seconds must be positive");
         if (getFfaMinSpawnDistance() < 0) problems.add("ffa.min-spawn-distance-from-players can't be negative");
-        if (getWeaponLadder().isEmpty()) problems.add("gungame.weapon-ladder is empty — Gun Game can't start");
+        if (getWeaponLadder().isEmpty()) problems.add("gungame.weapon-ladder is empty - Gun Game can't start");
         if (getBorderWallHalfWidth() <= 0) problems.add("arena-border.wall-half-width must be positive");
         if (getBorderWallHalfHeight() <= 0) problems.add("arena-border.wall-half-height must be positive");
+        if (getMaxBots() < 0) problems.add("bots.max-bots can't be negative");
+        if (getBotControllerName().isBlank()) problems.add("bots.controller-name can't be blank");
 
         if (!problems.isEmpty()) {
             plugin.getLogger().warning("config.yml has " + problems.size()
@@ -88,7 +92,7 @@ public final class ConfigManager {
 
     // team
     public double getImbalanceLockRatio() { return c().getDouble("team.imbalance-lock-ratio", 1.5); }
-    public int getSwapIncentivePoints() { return c().getInt("team.swap-incentive-points", 50); }
+    public int getSwapIncentiveMerit() { return c().getInt("team.swap-incentive-merit", 50); }
 
     // spawn protection
     public int getInvulnerabilitySeconds() { return c().getInt("spawn-protection.invulnerability-seconds", 10); }
@@ -97,9 +101,9 @@ public final class ConfigManager {
     public boolean isSpawnZoneNoBreak() { return c().getBoolean("spawn-protection.zone-no-break", true); }
     public boolean isSpawnZoneNoBuild() { return c().getBoolean("spawn-protection.zone-no-build", true); }
 
-    // points
-    public int getKillPoints() { return c().getInt("points.kill", 10); }
-    public int getStartingPoints() { return c().getInt("loadout.starting-points", 0); }
+    // merit
+    public int getKillMerit() { return c().getInt("merit.kill", 10); }
+    public int getStartingMerit() { return c().getInt("loadout.starting-merit", 0); }
 
     // death / respawn
     public int getSpectatorLockRadius() { return c().getInt("death.spectator-lock-radius-blocks", 50); }
@@ -112,8 +116,8 @@ public final class ConfigManager {
 
     // killstreaks
     public boolean isKillstreaksEnabled() { return c().getBoolean("killstreaks.enabled", true); }
-    public boolean isKillstreakBonusPointsEnabled() { return c().getBoolean("killstreaks.bonus-points-enabled", false); }
-    public int getKillstreakBonusPointsPerThreshold() { return c().getInt("killstreaks.bonus-points-per-threshold", 5); }
+    public boolean isKillstreakBonusMeritEnabled() { return c().getBoolean("killstreaks.bonus-merit-enabled", false); }
+    public int getKillstreakBonusMeritPerThreshold() { return c().getInt("killstreaks.bonus-merit-per-threshold", 5); }
     public int getMultiKillWindowSeconds() { return c().getInt("killstreaks.multikill-window-seconds", 4); }
 
     /** Streak length → callout name, ordered ascending. Empty if the section is missing/malformed. */
@@ -125,7 +129,7 @@ public final class ConfigManager {
             try {
                 thresholds.put(Integer.parseInt(key), section.getString(key));
             } catch (NumberFormatException e) {
-                plugin.getLogger().warning("killstreaks.thresholds key '" + key + "' isn't a number — skipped.");
+                plugin.getLogger().warning("killstreaks.thresholds key '" + key + "' isn't a number - skipped.");
             }
         }
         return thresholds;
@@ -177,14 +181,17 @@ public final class ConfigManager {
     public int getKothCaptureRadius() { return c().getInt("koth.capture-radius-blocks", 8); }
     public int getKothPointsPerSecond() { return c().getInt("koth.points-per-second", 1); }
     public String getKothParticleRing() { return c().getString("koth.particle-ring", "DUST"); }
+    /** Hardpoint-style rotation: the hill jumps to a different random point after this many
+     * seconds regardless of hold state (§8.1, added to push players around the whole map). */
+    public int getKothHillRotationSeconds() { return c().getInt("koth.hill-rotation-seconds", 90); }
 
     // domination
     public int getDominationPointCount() { return c().getInt("domination.capture-point-count", 3); }
-    public int getDominationCaptureRadius() { return c().getInt("domination.capture-radius-blocks", 6); }
+    public int getDominationCaptureRadius() { return c().getInt("domination.capture-radius-blocks", 16); }
     public int getDominationPointsPerTickPerZone() { return c().getInt("domination.points-per-tick-per-zone", 1); }
     public int getDominationTickIntervalSeconds() { return c().getInt("domination.tick-interval-seconds", 1); }
-    public String getDominationParticleBeam() { return c().getString("domination.particle-beam", "DUST"); }
-    public int getDominationBeamHeight() { return c().getInt("domination.beam-height", 20); }
+    public String getDominationParticleRing() { return c().getString("domination.particle-ring", "DUST"); }
+    public int getDominationCaptureTimeSeconds() { return c().getInt("domination.capture-time-seconds", 10); }
 
     // ffa
     public int getFfaMinSpawnDistance() { return c().getInt("ffa.min-spawn-distance-from-players", 15); }
@@ -194,7 +201,7 @@ public final class ConfigManager {
     public boolean isDemoteOnKnifeDeath() { return c().getBoolean("gungame.demote-on-knife-death", true); }
     public boolean isFinalKnifeKillInstantWin() { return c().getBoolean("gungame.final-knife-kill-wins-instantly", true); }
 
-    // arena border — visible + enforced boundary rendered from arena.yml's boundary corners
+    // arena border - visible + enforced boundary rendered from arena.yml's boundary corners
     public boolean isArenaBorderEnabled() { return c().getBoolean("arena-border.enabled", true); }
 
     public Material getBorderMaterial() {
@@ -207,4 +214,9 @@ public final class ConfigManager {
     public int getBorderWallHalfHeight() { return c().getInt("arena-border.wall-half-height", 6); }
     public int getBorderEnforceMargin() { return c().getInt("arena-border.enforce-margin", 2); }
     public int getBorderTickIntervalTicks() { return c().getInt("arena-border.tick-interval-ticks", 10); }
+
+    // bots - the external SkirmishAI (Mineflayer) bot controller's Minecraft username
+    public boolean isBotsEnabled() { return c().getBoolean("bots.enabled", true); }
+    public String getBotControllerName() { return c().getString("bots.controller-name", "SKIRMISHBOT"); }
+    public int getMaxBots() { return c().getInt("bots.max-bots", 10); }
 }

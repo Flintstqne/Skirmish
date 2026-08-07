@@ -9,7 +9,7 @@ import org.bukkit.entity.Player;
 import org.flintstqne.skirmish.Utils.Branding;
 import org.jetbrains.annotations.NotNull;
 
-/** /loadout — blocked outright in gamemodes with loadouts disabled (design doc §7.5.3). */
+/** /loadout - blocked outright in gamemodes with loadouts disabled (design doc §7.5.3). */
 public final class LoadoutCommand implements CommandExecutor {
 
     private final LoadoutService loadouts;

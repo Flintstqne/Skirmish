@@ -11,12 +11,12 @@ import java.util.Map;
 import java.util.logging.Logger;
 
 /**
- * loadout-catalog.yml — the single source of truth for what a preset key resolves to
+ * loadout-catalog.yml - the single source of truth for what a preset key resolves to
  * (design doc §7.5.1). Presets store {@link Entry#key()}, never an ItemStack.
  */
 public final class LoadoutCatalog {
 
-    /** Fixed category order — also the tab order in the builder GUI (§9.2). */
+    /** Fixed category order - also the tab order in the builder GUI (§9.2). */
     public enum Category {
         PRIMARY, SECONDARY, ARMOR, POTION, TOOL;
 
@@ -30,11 +30,17 @@ public final class LoadoutCatalog {
     }
 
     /**
-     * One shop entry. Exactly one of {@code wmWeapon} / {@code item} is set —
+     * One shop entry. Exactly one of {@code wmWeapon} / {@code item} is set -
      * WM owns weapons, vanilla Materials cover armor/potions/tools.
+     *
+     * {@code potionType} is only meaningful when {@code item} is a potion-capable material
+     * (POTION/SPLASH_POTION/LINGERING_POTION) - the raw name of an {@code org.bukkit.potion.
+     * PotionType} constant (e.g. {@code STRONG_HEALING} for Instant Health II), resolved by
+     * {@link WeaponFactory}. Null otherwise, or for a plain (effectless) potion material.
      */
     public record Entry(Category category, String key, String name, int cost,
-                        String wmWeapon, String item, int amount, Map<String, Integer> enchants) {
+                        String wmWeapon, String item, int amount, Map<String, Integer> enchants,
+                        String potionType) {
 
         public boolean isWeapon() {
             return wmWeapon != null;
@@ -67,7 +73,7 @@ public final class LoadoutCatalog {
                 Entry entry = parse(category, map);
                 if (entry == null) continue;
                 if (byKey.putIfAbsent(entry.key(), entry) != null) {
-                    logger.warning("Duplicate loadout key '" + entry.key() + "' — ignoring the later one.");
+                    logger.warning("Duplicate loadout key '" + entry.key() + "' - ignoring the later one.");
                     continue;
                 }
                 entries.add(entry);
@@ -83,13 +89,13 @@ public final class LoadoutCatalog {
         Object key = map.get("key");
         Object name = map.get("name");
         if (key == null || name == null) {
-            logger.warning("Loadout entry in '" + category.configName() + "' is missing key or name — skipped.");
+            logger.warning("Loadout entry in '" + category.configName() + "' is missing key or name - skipped.");
             return null;
         }
         Object wmWeapon = map.get("wm-weapon");
         Object item = map.get("item");
         if (wmWeapon == null && item == null) {
-            logger.warning("Loadout entry '" + key + "' has neither wm-weapon nor item — skipped.");
+            logger.warning("Loadout entry '" + key + "' has neither wm-weapon nor item - skipped.");
             return null;
         }
 
@@ -102,11 +108,13 @@ public final class LoadoutCatalog {
 
         int cost = map.get("cost") instanceof Number n ? n.intValue() : 0;
         int amount = map.get("amount") instanceof Number n ? Math.max(1, n.intValue()) : 1;
+        Object potionType = map.get("potion-type");
 
         return new Entry(category, String.valueOf(key), String.valueOf(name), cost,
                 wmWeapon == null ? null : String.valueOf(wmWeapon),
                 item == null ? null : String.valueOf(item),
-                amount, Map.copyOf(enchants));
+                amount, Map.copyOf(enchants),
+                potionType == null ? null : String.valueOf(potionType));
     }
 
     public List<Entry> get(Category category) {
@@ -124,6 +132,27 @@ public final class LoadoutCatalog {
             if (entry.isFree()) return entry;
         }
         return null;
+    }
+
+    /** Every free-tier ARMOR entry - the baseline "god set" every player starts each life
+     * with, one entry per body slot. Unlike {@link #getFreeDefault}, ARMOR has more than one
+     * free entry at once (a whole set, not a single pick). */
+    public List<Entry> getFreeArmorSet() {
+        return freeEntries(Category.ARMOR);
+    }
+
+    /** Every free-tier TOOL entry - like armor, the starting toolkit (knife, pickaxe, shovel,
+     * cobblestone, ...) is handed out as a full set rather than one pick. */
+    public List<Entry> getFreeToolSet() {
+        return freeEntries(Category.TOOL);
+    }
+
+    private List<Entry> freeEntries(Category category) {
+        List<Entry> free = new ArrayList<>();
+        for (Entry entry : get(category)) {
+            if (entry.isFree()) free.add(entry);
+        }
+        return free;
     }
 
     /** Total per-life cost of a set of keys, ignoring keys that no longer resolve. */

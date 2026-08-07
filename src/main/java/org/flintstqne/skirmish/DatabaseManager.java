@@ -1,6 +1,5 @@
 package org.flintstqne.skirmish;
 
-import org.flintstqne.skirmish.LoadoutLogic.LoadoutCatalog;
 import org.flintstqne.skirmish.LoadoutLogic.LoadoutPreset;
 import org.flintstqne.skirmish.StatLogic.PlayerStats;
 import org.flintstqne.skirmish.StatLogic.WinsByMode;
@@ -14,7 +13,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Types;
 import java.util.ArrayList;
-import java.util.EnumMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -22,7 +21,7 @@ import java.util.logging.Logger;
 
 /**
  * Single owner of the plugin's SQLite connection (data.db). Every subsystem that
- * persists anything goes through this class — there are no per-subsystem Db classes
+ * persists anything goes through this class - there are no per-subsystem Db classes
  * (design doc §5). Query/update methods are added here as subsystems need them.
  */
 public final class DatabaseManager {
@@ -63,25 +62,22 @@ public final class DatabaseManager {
         connection = null;
     }
 
-    /** Live connection. Callers must not close it — {@link #close()} owns the lifecycle. */
+    /** Live connection. Callers must not close it - {@link #close()} owns the lifecycle. */
     public Connection getConnection() {
         return connection;
     }
 
     private void createSchema() throws SQLException {
         try (Statement st = connection.createStatement()) {
+            migrateOldPresetsTableIfPresent(st);
             st.executeUpdate("""
                     CREATE TABLE IF NOT EXISTS loadout_presets (
-                        preset_id      INTEGER PRIMARY KEY AUTOINCREMENT,
-                        player_uuid    TEXT NOT NULL,
-                        name           TEXT NOT NULL,
-                        slot_index     INTEGER NOT NULL,
-                        primary_item   TEXT,
-                        secondary_item TEXT,
-                        armor_item     TEXT,
-                        potion_item    TEXT,
-                        tool_item      TEXT,
-                        created_at     INTEGER NOT NULL
+                        preset_id   INTEGER PRIMARY KEY AUTOINCREMENT,
+                        player_uuid TEXT NOT NULL,
+                        name        TEXT NOT NULL,
+                        slot_index  INTEGER NOT NULL,
+                        items       TEXT NOT NULL,
+                        created_at  INTEGER NOT NULL
                     )""");
             st.executeUpdate("""
                     CREATE TABLE IF NOT EXISTS active_loadout (
@@ -113,32 +109,60 @@ public final class DatabaseManager {
         }
     }
 
+    /**
+     * The old schema stored exactly one item per category as five separate columns
+     * (one-per-category loadouts); the new bedwars-style shop stores an ordered, possibly-
+     * repeating list of purchased keys instead, which doesn't fit that shape at all. There's
+     * no real migration between the two - this is a dev/test plugin with no production
+     * presets worth preserving - so an old-format table is dropped and rebuilt rather than
+     * silently misreading it.
+     */
+    private void migrateOldPresetsTableIfPresent(Statement st) throws SQLException {
+        boolean isOldFormat = false;
+        try (ResultSet rs = st.executeQuery("PRAGMA table_info(loadout_presets)")) {
+            while (rs.next()) {
+                if ("primary_item".equals(rs.getString("name"))) isOldFormat = true;
+            }
+        }
+        if (isOldFormat) {
+            logger.warning("loadout_presets is in the old one-item-per-category format - "
+                    + "dropping and recreating it for the new shopping-list format (saved presets will be lost).");
+            st.executeUpdate("DROP TABLE loadout_presets");
+        }
+    }
+
     // ---- loadout presets (design doc §5.1, §7.6) -----------------------------
 
-    private static final String PRESET_COLUMNS =
-            "preset_id, name, slot_index, primary_item, secondary_item, armor_item, potion_item, tool_item";
+    private static final String PRESET_COLUMNS = "preset_id, name, slot_index, items";
+    /** One "slot:key" pair per entry, comma-joined - catalog keys are plain lowercase_underscore
+     * identifiers (see loadout-catalog.yml), so neither delimiter can appear inside one. */
+    private static final String ENTRY_DELIMITER = ",";
+    private static final String SLOT_KEY_DELIMITER = ":";
 
-    public int createPreset(UUID playerUuid, String name, int slotIndex,
-                            Map<LoadoutCatalog.Category, String> selection) throws SQLException {
-        String sql = "INSERT INTO loadout_presets "
-                + "(player_uuid, name, slot_index, primary_item, secondary_item, armor_item, potion_item, tool_item, created_at) "
-                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    public int createPreset(UUID playerUuid, String name, int slotIndex, Map<Integer, String> layout) throws SQLException {
+        String sql = "INSERT INTO loadout_presets (player_uuid, name, slot_index, items, created_at) "
+                + "VALUES (?, ?, ?, ?, ?)";
         try (PreparedStatement ps = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setString(1, playerUuid.toString());
             ps.setString(2, name);
             ps.setInt(3, slotIndex);
-            ps.setString(4, selection.get(LoadoutCatalog.Category.PRIMARY));
-            ps.setString(5, selection.get(LoadoutCatalog.Category.SECONDARY));
-            ps.setString(6, selection.get(LoadoutCatalog.Category.ARMOR));
-            ps.setString(7, selection.get(LoadoutCatalog.Category.POTION));
-            ps.setString(8, selection.get(LoadoutCatalog.Category.TOOL));
-            ps.setLong(9, System.currentTimeMillis());
+            ps.setString(4, serializeLayout(layout));
+            ps.setLong(5, System.currentTimeMillis());
             ps.executeUpdate();
             try (ResultSet keys = ps.getGeneratedKeys()) {
                 keys.next();
                 return keys.getInt(1);
             }
         }
+    }
+
+    private String serializeLayout(Map<Integer, String> layout) {
+        StringBuilder sb = new StringBuilder();
+        for (Map.Entry<Integer, String> entry : layout.entrySet()) {
+            if (sb.length() > 0) sb.append(ENTRY_DELIMITER);
+            sb.append(entry.getKey()).append(SLOT_KEY_DELIMITER).append(entry.getValue());
+        }
+        return sb.toString();
     }
 
     public List<LoadoutPreset> listPresets(UUID playerUuid) throws SQLException {
@@ -183,7 +207,7 @@ public final class DatabaseManager {
         }
     }
 
-    /** The FK is ON DELETE SET NULL — deleting someone's active preset just clears the pointer. */
+    /** The FK is ON DELETE SET NULL - deleting someone's active preset just clears the pointer. */
     public void deletePreset(int presetId) throws SQLException {
         try (PreparedStatement ps = connection.prepareStatement("DELETE FROM loadout_presets WHERE preset_id = ?")) {
             ps.setInt(1, presetId);
@@ -218,22 +242,21 @@ public final class DatabaseManager {
     }
 
     private LoadoutPreset readPreset(ResultSet rs) throws SQLException {
-        Map<LoadoutCatalog.Category, String> selection = new EnumMap<>(LoadoutCatalog.Category.class);
-        putIfPresent(selection, LoadoutCatalog.Category.PRIMARY, rs.getString("primary_item"));
-        putIfPresent(selection, LoadoutCatalog.Category.SECONDARY, rs.getString("secondary_item"));
-        putIfPresent(selection, LoadoutCatalog.Category.ARMOR, rs.getString("armor_item"));
-        putIfPresent(selection, LoadoutCatalog.Category.POTION, rs.getString("potion_item"));
-        putIfPresent(selection, LoadoutCatalog.Category.TOOL, rs.getString("tool_item"));
-        return new LoadoutPreset(rs.getInt("preset_id"), rs.getString("name"), rs.getInt("slot_index"), selection);
-    }
-
-    private void putIfPresent(Map<LoadoutCatalog.Category, String> map, LoadoutCatalog.Category category, String value) {
-        if (value != null) map.put(category, value);
+        String raw = rs.getString("items");
+        Map<Integer, String> layout = new LinkedHashMap<>();
+        if (raw != null && !raw.isEmpty()) {
+            for (String pair : raw.split(ENTRY_DELIMITER)) {
+                int split = pair.indexOf(SLOT_KEY_DELIMITER);
+                if (split < 0) continue;
+                layout.put(Integer.parseInt(pair.substring(0, split)), pair.substring(split + 1));
+            }
+        }
+        return new LoadoutPreset(rs.getInt("preset_id"), rs.getString("name"), rs.getInt("slot_index"), layout);
     }
 
     // ---- player stats & round history (design doc §5.1, §7.10) --------------
 
-    /** Every write here upserts — a brand-new player's first kill creates their row. */
+    /** Every write here upserts - a brand-new player's first kill creates their row. */
     private void ensurePlayerRow(UUID playerUuid, String name) throws SQLException {
         try (PreparedStatement ps = connection.prepareStatement(
                 "INSERT INTO player_stats (player_uuid, player_name) VALUES (?, ?) "
@@ -269,7 +292,7 @@ public final class DatabaseManager {
         addToColumn(playerUuid, "rounds_played", 1);
     }
 
-    /** Also bumps the {@code wins_by_mode} JSON blob for this gamemode — a read-modify-write,
+    /** Also bumps the {@code wins_by_mode} JSON blob for this gamemode - a read-modify-write,
      * safe because every DatabaseManager call in this plugin runs on the main thread. */
     public void incrementRoundsWon(UUID playerUuid, String name, String gamemode) throws SQLException {
         ensurePlayerRow(playerUuid, name);
@@ -323,7 +346,7 @@ public final class DatabaseManager {
     }
 
     /**
-     * @param column must be one of the caller-validated leaderboard columns — interpolated
+     * @param column must be one of the caller-validated leaderboard columns - interpolated
      *               directly into the SQL since JDBC can't parameterize a column name, so
      *               this must never see a caller-supplied string directly (see StatService).
      */
@@ -360,7 +383,7 @@ public final class DatabaseManager {
                                   int finalScoreA, int finalScoreB) {
     }
 
-    /** No per-player link exists in this schema (design doc §5.1) — this is the server's
+    /** No per-player link exists in this schema (design doc §5.1) - this is the server's
      * recent rounds, not any one player's. */
     public List<RoundHistoryRow> getRecentRounds(int limit) throws SQLException {
         List<RoundHistoryRow> rows = new ArrayList<>();
@@ -379,7 +402,7 @@ public final class DatabaseManager {
         return rows;
     }
 
-    /** Wipes one player's lifetime stats — the row is recreated fresh on their next stat write. */
+    /** Wipes one player's lifetime stats - the row is recreated fresh on their next stat write. */
     public void resetPlayerStats(UUID playerUuid) throws SQLException {
         try (PreparedStatement ps = connection.prepareStatement("DELETE FROM player_stats WHERE player_uuid = ?")) {
             ps.setString(1, playerUuid.toString());

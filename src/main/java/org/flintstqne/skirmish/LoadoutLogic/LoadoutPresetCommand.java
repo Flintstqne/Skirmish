@@ -7,7 +7,7 @@ import org.bukkit.entity.Player;
 import org.flintstqne.skirmish.Utils.Branding;
 import org.jetbrains.annotations.NotNull;
 
-/** /loadouts — GUI-only entry point, just opens the presets GUI directly (design doc §10). */
+/** /loadouts - GUI-only entry point, just opens the presets GUI directly (design doc §10). */
 public final class LoadoutPresetCommand implements CommandExecutor {
 
     private final LoadoutPresetGui gui;

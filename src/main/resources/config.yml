@@ -1,11 +1,11 @@
 # Skirmish tuning config (hand-edited).
 # Map data (spawns, hill points, capture points, boundary) lives in arena.yml,
-# set in-game via /arena — do not put map coordinates here.
+# set in-game via /arena - do not put map coordinates here.
 
 round:
   duration-minutes: 30
   score-threshold-ends-round: true
-  # Countdown after players are placed/geared but before the round timer/scoring starts —
+  # Countdown after players are placed/geared but before the round timer/scoring starts -
   # keep >= spawn-protection.invulnerability-seconds, or players could start trading damage
   # before the countdown visually ends (a fresh invuln grant still lands exactly when the
   # round goes ACTIVE, but the one granted at placement could expire mid-countdown first).
@@ -14,7 +14,7 @@ round:
   # wait for this many online players before cloning a world. /round start (admin) bypasses it.
   min-players-to-start: 1
 
-# Kicks players idle (no movement/interaction/chat) during warmup or between rounds — never
+# Kicks players idle (no movement/interaction/chat) during warmup or between rounds - never
 # mid-round, so holding an objective or a defensive position doesn't count as AFK.
 afk:
   kick-enabled: true
@@ -22,21 +22,23 @@ afk:
 
 team:
   imbalance-lock-ratio: 1.5
-  swap-incentive-points: 50
+  swap-incentive-merit: 50
 
 spawn-protection:
   invulnerability-seconds: 10
   # Zone protection only applies to gamemodes with FIXED spawns (TDM, KOTH, DOMINATION).
-  # FFA / GUN_GAME use random spawns — invulnerability applies, zone radius does not.
-  zone-radius-blocks: 32
+  # FFA / GUN_GAME use random spawns - invulnerability applies, zone radius does not.
+  # 0 disables the zone bubble outright (inSpawnZone() can never be true) - only the timed
+  # personal invulnerability above still applies.
+  zone-radius-blocks: 0
   zone-no-damage: true
   zone-no-break: true
   zone-no-build: true
 
-points:
+merit:
   kill: 10
   # No diminishing-returns / repeat-kill / underdog logic by design.
-  # Points are per-life scoped and reset on death — that is the anti-snowball mechanism.
+  # Merit is per-life scoped and reset on death - that is the anti-snowball mechanism.
 
 death:
   spectator-lock-radius-blocks: 50
@@ -48,15 +50,15 @@ death:
 
 kill-feed:
   enabled: true
-  # Broadcast to everyone on every kill (§11 item 3). The per-killer "+N pts" actionbar
-  # (points.kill) is separate and stays even if this is off.
+  # Broadcast to everyone on every kill (§11 item 3). The per-killer "+N Merit" actionbar
+  # (merit.kill) is separate and stays even if this is off.
 
 killstreaks:
   enabled: true
-  bonus-points-enabled: false   # per-life points are already a snowball risk — off by default
-  bonus-points-per-threshold: 5
+  bonus-merit-enabled: false   # per-life Merit is already a snowball risk - off by default
+  bonus-merit-per-threshold: 5
   # Kills within this many seconds of each other count as one multi-kill (Double Kill, Triple
-  # Kill, ...) — a separate callout from the per-life streak thresholds below.
+  # Kill, ...) - a separate callout from the per-life streak thresholds below.
   multikill-window-seconds: 4
   # Streak length -> callout name, broadcast to everyone when a player reaches it.
   thresholds:
@@ -94,15 +96,22 @@ koth:
   points-per-second: 1
   score-threshold: 300
   particle-ring: DUST
+  # Hardpoint-style: the hill jumps to a different random point after this long, regardless
+  # of whether it was held - keeps players moving across the whole map instead of camping
+  # one spot for the entire round.
+  hill-rotation-seconds: 90
 
 domination:
   capture-point-count: 3
-  capture-radius-blocks: 6
+  capture-radius-blocks: 16
   points-per-tick-per-zone: 1
   tick-interval-seconds: 1
   score-threshold: 300
-  particle-beam: DUST
-  beam-height: 20
+  particle-ring: DUST
+  # Real seconds of uncontested solo presence needed to flip a zone from neutral all the way
+  # to fully owned (or to erode an enemy's ownership back to neutral before you can start
+  # capturing it yourself) - capture is progress-based, not instant-hold.
+  capture-time-seconds: 10
 
 tdm:
   score-threshold: 75
@@ -114,7 +123,7 @@ ffa:
 gungame:
   score-threshold-is-tier-completion: true
   # Each entry is a WeaponMechanics weapon title (the top-level key of a WM weapon .yml),
-  # generated directly via WeaponMechanicsAPI.generateWeapon — Gun Game has no loadout shop,
+  # generated directly via WeaponMechanicsAPI.generateWeapon - Gun Game has no loadout shop,
   # so this bypasses loadout-catalog.yml entirely. The LAST entry is always the knife tier.
   weapon-ladder:
     - Uzi
@@ -128,7 +137,7 @@ gungame:
   final-knife-kill-wins-instantly: true
 
 loadout:
-  starting-points: 0
+  starting-merit: 0
 
 kits:
   max-saved-presets: 5
@@ -140,8 +149,13 @@ arena-border:
   wall-half-width: 10       # the visible wall patch extends this far each way along the edge
   wall-half-height: 6       # and this far up/down from the player
   enforce-margin: 2         # blocks past the boundary allowed before movement is blocked outright
-                            # (backstop only — the solid-looking wall is what actually stops most players)
+                            # (backstop only - the solid-looking wall is what actually stops most players)
   tick-interval-ticks: 10   # how often each player's nearby wall is recalculated
 
 discord:
   enabled: false
+
+bots:
+  enabled: true
+  controller-name: SKIRMISHBOT  # the SkirmishAI Mineflayer controller's Minecraft username
+  max-bots: 10

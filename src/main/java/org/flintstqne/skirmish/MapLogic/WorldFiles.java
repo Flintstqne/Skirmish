@@ -11,7 +11,7 @@ import java.util.Set;
 
 /**
  * Filesystem half of the per-round world lifecycle (design doc §7.3), kept free of Bukkit
- * so it can be tested directly — a bug in {@link #deleteRecursively} deletes real data.
+ * so it can be tested directly - a bug in {@link #deleteRecursively} deletes real data.
  */
 public final class WorldFiles {
 

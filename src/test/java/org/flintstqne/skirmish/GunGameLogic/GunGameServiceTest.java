@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** Gun Game's ladder arithmetic (design doc §8.5) — a 7-tier ladder has valid indices 0-6. */
+/** Gun Game's ladder arithmetic (design doc §8.5) - a 7-tier ladder has valid indices 0-6. */
 class GunGameServiceTest {
 
     private static final int LADDER_SIZE = 7;

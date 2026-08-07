@@ -9,20 +9,20 @@ import org.bukkit.event.entity.PlayerDeathEvent;
 import org.flintstqne.skirmish.RoundLogic.RoundService;
 
 /**
- * Lifetime kill/death tracking (design doc §7.10) — mode-agnostic, unlike
+ * Lifetime kill/death tracking (design doc §7.10) - mode-agnostic, unlike
  * {@code CombatListener}'s per-life points or {@code GunGameListener}'s ladder: every
  * gamemode's kills and deaths count toward the same lifetime stats.
  *
- * Deaths come from {@link PlayerDeathEvent} (any death counts, not just weapon kills —
+ * Deaths come from {@link PlayerDeathEvent} (any death counts, not just weapon kills -
  * matches the usual K/D convention) rather than {@link WeaponKillEntityEvent}'s victim, so a
  * fall or environmental death still counts against you.
  *
- * Only counts during an active round — stats shouldn't move from an admin's {@code /kill}
+ * Only counts during an active round - stats shouldn't move from an admin's {@code /kill}
  * test or a death while free-roaming after a round has already ended.
  */
 public final class StatListener implements Listener {
 
-    /** The one melee weapon in this project — shared by the loadout catalog's "knife" tool
+    /** The one melee weapon in this project - shared by the loadout catalog's "knife" tool
      * and Gun Game's final tier, so a single title check covers knife kills in every mode. */
     private static final String KNIFE_TITLE = "Combat_Knife";
 

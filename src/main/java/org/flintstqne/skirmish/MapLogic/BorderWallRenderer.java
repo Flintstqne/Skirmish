@@ -25,10 +25,10 @@ import java.util.UUID;
  * previously stored but never rendered or enforced) plus a movement backstop.
  *
  * The wall is client-only, sent per player with {@link Player#sendBlockChange}, so it never
- * touches the real world. Only a window near each player is ever drawn — the box perimeter
+ * touches the real world. Only a window near each player is ever drawn - the box perimeter
  * at full height is tens of thousands of blocks, almost none of which anyone can see at once.
  * A player who approaches a corner sees two independent patches, one per nearby face, rather
- * than a merged diagonal corner — visually adequate, and skips a lot of projection math for it.
+ * than a merged diagonal corner - visually adequate, and skips a lot of projection math for it.
  *
  * The fake blocks are what actually stops most players (the client treats them as solid
  * terrain). The move-cancel is only a backstop for whoever clips through before the client
@@ -138,7 +138,7 @@ public final class BorderWallRenderer implements Listener {
         forEachBlock(face, window, (x, y, z) -> player.sendBlockChange(new Location(bounds.world(), x, y, z), data));
     }
 
-    /** Sends each block's real, current state back — this is client-only, nothing was ever placed. */
+    /** Sends each block's real, current state back - this is client-only, nothing was ever placed. */
     private void revert(Player player, Face face, Window window) {
         World world = bounds.world();
         forEachBlock(face, window, (x, y, z) -> {

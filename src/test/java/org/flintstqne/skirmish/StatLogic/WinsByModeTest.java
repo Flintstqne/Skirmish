@@ -8,7 +8,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** The hand-rolled `wins_by_mode` (de)serializer (design doc §5.1) — round-trips its own output. */
+/** The hand-rolled `wins_by_mode` (de)serializer (design doc §5.1) - round-trips its own output. */
 class WinsByModeTest {
 
     @Test
@@ -19,7 +19,7 @@ class WinsByModeTest {
 
     @Test
     void legacyUnversionedBlobsStillParse() {
-        // Rows written before the v1: prefix existed — must keep reading correctly.
+        // Rows written before the v1: prefix existed - must keep reading correctly.
         assertEquals(Map.of("TDM", 5), WinsByMode.parse("{\"TDM\":5}"));
         assertTrue(WinsByMode.parse("{}").isEmpty());
     }

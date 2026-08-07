@@ -24,13 +24,13 @@ import java.util.UUID;
 
 /**
  * Two layers of spawn protection (design doc §7.7):
- * personal timed invulnerability on every respawn, and — for fixed-spawn gamemodes only —
+ * personal timed invulnerability on every respawn, and - for fixed-spawn gamemodes only -
  * a persistent no-damage/no-break/no-build bubble around each configured team spawn.
  */
 public final class SpawnProtectionManager implements Listener {
 
     /**
-     * Spawn protection guards against combat, not gravity or an admin's own command — these
+     * Spawn protection guards against combat, not gravity or an admin's own command - these
      * causes always go through even while invulnerable or inside the zone. KILL is what
      * {@code /kill} (and anything else that force-kills) fires; FALL is normal fall damage.
      */
@@ -41,7 +41,7 @@ public final class SpawnProtectionManager implements Listener {
     private final TeamService teams;
     private final Map<UUID, Long> invulnerableUntil = new HashMap<>();
 
-    /** Random-spawn gamemodes (FFA, GUN_GAME) have no fixed point to protect — RoundService flips this. */
+    /** Random-spawn gamemodes (FFA, GUN_GAME) have no fixed point to protect - RoundService flips this. */
     private boolean zonesEnabled = true;
 
     public SpawnProtectionManager(ConfigManager config, TeamService teams) {
@@ -69,7 +69,7 @@ public final class SpawnProtectionManager implements Listener {
         invulnerableUntil.remove(player.getUniqueId());
     }
 
-    // ponytail: re-reads spawns from arena.yml per event — fine for 2 spawns, cache in
+    // ponytail: re-reads spawns from arena.yml per event - fine for 2 spawns, cache in
     // TeamService (invalidated on /arena setspawn) if damage-event profiling ever shows it.
     private boolean inSpawnZone(Location loc) {
         if (!zonesEnabled) return false;
@@ -95,7 +95,7 @@ public final class SpawnProtectionManager implements Listener {
         }
     }
 
-    /** An attacker standing in a spawn zone can't shoot out of it either — but mobs and other
+    /** An attacker standing in a spawn zone can't shoot out of it either - but mobs and other
      * non-player entities aren't protected by this rule, so players can still fight through them. */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onDamageByEntity(EntityDamageByEntityEvent event) {

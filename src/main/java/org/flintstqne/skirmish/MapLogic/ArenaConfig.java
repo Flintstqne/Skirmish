@@ -16,11 +16,11 @@ import java.util.Map;
 
 /**
  * Map data (arena.yml): world, boundary, spawns, hill/capture point pools.
- * Written by /arena admin commands, not hand-edited — kept separate from
+ * Written by /arena admin commands, not hand-edited - kept separate from
  * config.yml tuning on purpose (design doc §6).
  *
  * Locations use Bukkit's built-in ConfigurationSerializable form rather than the
- * hand-rolled {x, y, z, yaw} maps sketched in the design doc — same data, no
+ * hand-rolled {x, y, z, yaw} maps sketched in the design doc - same data, no
  * parse/serialize code to maintain.
  */
 public final class ArenaConfig {
@@ -43,7 +43,7 @@ public final class ArenaConfig {
     /**
      * Reads just {@code world-name} without touching anything else in the file.
      *
-     * Must be called — and the world it names loaded — before {@link #load()}: parsing the
+     * Must be called - and the world it names loaded - before {@link #load()}: parsing the
      * full YAML eagerly deserializes every stored {@link Location}, including the team
      * spawns bound to this same world, and that silently fails ("unknown world") if the
      * world isn't loaded yet.
@@ -79,7 +79,7 @@ public final class ArenaConfig {
         yaml.set("world-name", name);
     }
 
-    // boundary — two corners; min/max derived when something needs a containment check.
+    // boundary - two corners; min/max derived when something needs a containment check.
     public Location getBoundaryCorner(int corner) {
         return yaml.getLocation("boundary.corner" + corner);
     }
@@ -93,7 +93,7 @@ public final class ArenaConfig {
         return locationList("team-spawns." + team.toLowerCase(Locale.ROOT));
     }
 
-    /** Replaces the team's spawn list with a single point — matches /arena setspawn. */
+    /** Replaces the team's spawn list with a single point - matches /arena setspawn. */
     public void setTeamSpawn(String team, Location loc) {
         yaml.set("team-spawns." + team.toLowerCase(Locale.ROOT), List.of(loc));
     }

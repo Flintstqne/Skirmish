@@ -5,7 +5,7 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.command.CommandSender;
 
-/** Single source of truth for Skirmish's visual identity — the message prefix and the color
+/** Single source of truth for Skirmish's visual identity - the message prefix and the color
  * palette every command, listener, GUI, scoreboard, and kill feed line draws from. Nothing in
  * the plugin should pick its own ad hoc {@link NamedTextColor} for chat/UI text anymore; add a
  * constant here instead so the brand stays one thing instead of drifting per-class. */
@@ -22,7 +22,7 @@ public final class Branding {
     public static final NamedTextColor TEAM_RED = NamedTextColor.RED;
     public static final NamedTextColor TEAM_BLUE = NamedTextColor.BLUE;
 
-    /** {@code [Skirmish] } — every player-facing message is built with this in front. */
+    /** {@code [Skirmish] } - every player-facing message is built with this in front. */
     public static final Component PREFIX = Component.text()
             .append(Component.text("[", MUTED))
             .append(Component.text("Skirmish", BRAND, TextDecoration.BOLD))

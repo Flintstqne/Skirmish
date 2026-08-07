@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * Pure geometry behind the shared ring (KOTH) and beam (Domination) particle shapes —
+ * Pure geometry behind the shared ring (KOTH) and beam (Domination) particle shapes -
  * the part worth verifying without a live World (design doc §8.1/§8.2).
  */
 class ObjectiveParticleManagerTest {
@@ -48,7 +48,7 @@ class ObjectiveParticleManagerTest {
     @Test
     void beamAlwaysProducesAtLeastOneStepEvenForZeroHeight() {
         // A degenerate 0-height beam config shouldn't produce a zero-length array and
-        // silently render nothing at all — always draw at least the base point.
+        // silently render nothing at all - always draw at least the base point.
         assertEquals(1, ObjectiveParticleManager.beamHeights(0, 4).length);
     }
 }

@@ -128,13 +128,13 @@ public final class StatCommand implements CommandExecutor, TabCompleter {
         }
         int rank = 1;
         for (var row : result) {
-            sender.sendMessage(Component.text(rank + ". " + row.name() + " — " + row.value(), Branding.HIGHLIGHT));
+            sender.sendMessage(Component.text(rank + ". " + row.name() + " - " + row.value(), Branding.HIGHLIGHT));
             rank++;
         }
         return true;
     }
 
-    /** Branded header for a multi-line report — the prefix goes once per block, not on every
+    /** Branded header for a multi-line report - the prefix goes once per block, not on every
      * data line beneath it. */
     private Component heading(String title) {
         return Branding.prefix(Component.text(title, Branding.BRAND, TextDecoration.BOLD));

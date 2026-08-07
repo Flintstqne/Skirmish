@@ -16,7 +16,7 @@ import org.flintstqne.skirmish.Utils.KillstreakService;
 import java.util.List;
 
 /**
- * Gun Game's ladder rules (design doc §8.5) — deliberately asymmetric:
+ * Gun Game's ladder rules (design doc §8.5) - deliberately asymmetric:
  * <ul>
  *   <li>gun kill → promote</li>
  *   <li>knife kill → promote (same as a gun kill, unless it's the win case below)</li>
@@ -27,7 +27,7 @@ import java.util.List;
  * </ul>
  *
  * Kill attribution reuses the same {@link WeaponKillEntityEvent} CombatListener uses for
- * TDM/FFA — the weapon title on the event is enough to tell a knife kill from a gun kill
+ * TDM/FFA - the weapon title on the event is enough to tell a knife kill from a gun kill
  * without a second WM event.
  */
 public final class GunGameListener implements Listener {
@@ -73,7 +73,7 @@ public final class GunGameListener implements Listener {
 
         if (knifeKill && config.isDemoteOnKnifeDeath()) {
             if (gunGame.isFloorTier(victim)) {
-                victim.sendActionBar(Component.text("Already at tier 1 — no lower to demote to.", NamedTextColor.GRAY));
+                victim.sendActionBar(Component.text("Already at tier 1 - no lower to demote to.", NamedTextColor.GRAY));
             } else {
                 gunGame.demote(victim);
             }

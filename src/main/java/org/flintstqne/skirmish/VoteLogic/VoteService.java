@@ -12,7 +12,7 @@ import java.util.Random;
 import java.util.UUID;
 
 /**
- * End-of-round gamemode vote (design doc §7.9). Votes are ephemeral — cleared at the
+ * End-of-round gamemode vote (design doc §7.9). Votes are ephemeral - cleared at the
  * start of every end-round sequence and never written to disk (§5.2).
  */
 public final class VoteService {
@@ -24,7 +24,7 @@ public final class VoteService {
 
     /**
      * @param enabled  {@code vote.enabled-gamemodes} from config
-     * @param playable modes with working round logic — the vote can't offer what can't be played yet
+     * @param playable modes with working round logic - the vote can't offer what can't be played yet
      */
     public VoteService(List<GamemodeType> enabled, List<GamemodeType> playable) {
         this.enabled = List.copyOf(enabled);
@@ -43,7 +43,7 @@ public final class VoteService {
         votes.clear();
     }
 
-    /** Votes are changeable until the countdown ends — a second vote replaces the first. */
+    /** Votes are changeable until the countdown ends - a second vote replaces the first. */
     public void vote(UUID voter, GamemodeType mode) {
         if (!getOptions().contains(mode)) return;
         votes.put(voter, mode);

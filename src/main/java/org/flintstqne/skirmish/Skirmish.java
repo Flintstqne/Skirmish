@@ -5,6 +5,11 @@ import org.bukkit.World;
 import org.bukkit.WorldCreator;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.flintstqne.skirmish.BotLogic.BotAckCommand;
+import org.flintstqne.skirmish.BotLogic.BotCommand;
+import org.flintstqne.skirmish.BotLogic.BotJoinListener;
+import org.flintstqne.skirmish.BotLogic.BotObjectiveTask;
+import org.flintstqne.skirmish.BotLogic.BotService;
 import org.flintstqne.skirmish.CombatLogic.CombatListener;
 import org.flintstqne.skirmish.CombatLogic.DeathSpectatorService;
 import org.flintstqne.skirmish.CombatLogic.SpawnProtectionManager;
@@ -20,6 +25,7 @@ import org.flintstqne.skirmish.LoadoutLogic.LoadoutPresetService;
 import org.flintstqne.skirmish.LoadoutLogic.LoadoutService;
 import org.flintstqne.skirmish.LoadoutLogic.WeaponFactory;
 import org.flintstqne.skirmish.MapLogic.ArenaAdminCommand;
+import org.flintstqne.skirmish.ObjectiveLogic.ObjectiveCommand;
 import org.flintstqne.skirmish.MapLogic.ArenaConfig;
 import org.flintstqne.skirmish.MapLogic.BorderWallRenderer;
 import org.flintstqne.skirmish.MapLogic.RandomSpawnSelector;
@@ -39,6 +45,7 @@ import org.flintstqne.skirmish.Utils.KillstreakService;
 import org.flintstqne.skirmish.Utils.ScoreboardService;
 import org.flintstqne.skirmish.VoteLogic.VoteGui;
 import org.flintstqne.skirmish.VoteLogic.VoteService;
+import org.flintstqne.skirmish.TeamLogic.TeamColorService;
 import org.flintstqne.skirmish.TeamLogic.TeamCommand;
 import org.flintstqne.skirmish.TeamLogic.TeamEnforcer;
 import org.flintstqne.skirmish.TeamLogic.TeamSelectGui;
@@ -64,13 +71,14 @@ public final class Skirmish extends JavaPlugin {
     private StatService statService;
     private ScoreboardService scoreboardService;
     private AfkService afkService;
+    private BotObjectiveTask botObjectiveTask;
 
     @Override
     public void onEnable() {
         configManager = new ConfigManager(this);
 
         arenaConfig = new ArenaConfig(this);
-        // Load the arena world BEFORE the full arena.yml parse — see ArenaConfig#peekWorldName.
+        // Load the arena world BEFORE the full arena.yml parse - see ArenaConfig#peekWorldName.
         loadArenaWorld(arenaConfig.peekWorldName());
         arenaConfig.load();
 
@@ -90,6 +98,7 @@ public final class Skirmish extends JavaPlugin {
         }
 
         teamService = new TeamService(configManager, arenaConfig, worldManager);
+        TeamColorService teamColorService = new TeamColorService(teamService);
         spawnProtectionManager = new SpawnProtectionManager(configManager, teamService);
 
         File catalogFile = new File(getDataFolder(), "loadout-catalog.yml");
@@ -104,7 +113,7 @@ public final class Skirmish extends JavaPlugin {
 
         deathSpectatorService = new DeathSpectatorService(this, configManager);
 
-        // LoadoutBuilderGui and LoadoutPresetGui navigate to each other — the setter breaks
+        // LoadoutBuilderGui and LoadoutPresetGui navigate to each other - the setter breaks
         // the constructor cycle (see LoadoutBuilderGui#setPresetsGui).
         LoadoutBuilderGui loadoutBuilderGui = new LoadoutBuilderGui(loadoutService, loadoutPresetService);
         LoadoutPresetGui loadoutPresetGui = new LoadoutPresetGui(this, loadoutPresetService, loadoutService, loadoutBuilderGui);
@@ -112,18 +121,21 @@ public final class Skirmish extends JavaPlugin {
 
         BorderWallRenderer borderWallRenderer = new BorderWallRenderer(this, configManager, arenaConfig, worldManager);
 
-        TeamSelectGui teamSelectGui = new TeamSelectGui(this, teamService, configManager, loadoutService);
-        TeamEnforcer teamEnforcer = new TeamEnforcer(this, teamService, teamSelectGui);
+        TeamSelectGui teamSelectGui = new TeamSelectGui(this, teamService, configManager, loadoutService, teamColorService);
+        TeamEnforcer teamEnforcer = new TeamEnforcer(this, teamService, teamSelectGui, teamColorService);
+        // The bot controller connects as a real player but never plays - exempt it so it
+        // doesn't get stuck reopening the team-select GUI forever.
+        teamEnforcer.setExemptNames(java.util.Set.of(configManager.getBotControllerName()));
 
         RandomSpawnSelector randomSpawns = new RandomSpawnSelector(arenaConfig, worldManager);
 
         voteService = new VoteService(configManager.getVoteableGamemodes(), RoundService.PLAYABLE);
         roundService = new RoundService(this, configManager, teamService, loadoutService, loadoutPresetService,
                 spawnProtectionManager, deathSpectatorService, worldManager, borderWallRenderer, teamEnforcer,
-                randomSpawns, gunGameService, statService);
+                randomSpawns, gunGameService, statService, teamColorService);
         roundService.setEndRoundSequence(new EndRoundSequence(this, configManager, roundService,
                 deathSpectatorService, voteService, new VoteGui(voteService)));
-        // Breaks the TeamEnforcer/DeathSpectatorService <-> RoundService construction cycles —
+        // Breaks the TeamEnforcer/DeathSpectatorService <-> RoundService construction cycles -
         // both are built before RoundService since RoundService's constructor takes them.
         teamEnforcer.setRoundService(roundService);
         deathSpectatorService.setRoundService(roundService);
@@ -140,13 +152,18 @@ public final class Skirmish extends JavaPlugin {
                 worldManager, teamService, deathSpectatorService, roundService, dominationUi, statService);
         roundService.setDominationObjective(dominationObjective);
 
+        BotService botService = new BotService(configManager, teamService, roundService);
+        BotJoinListener botJoinListener = new BotJoinListener(this, botService, teamService, roundService, teamColorService);
+        botObjectiveTask = new BotObjectiveTask(this, botService, roundService, hillObjective, dominationObjective, teamService);
+
         KillstreakService killstreakService = new KillstreakService(configManager, loadoutService, roundService);
         CombatListener combatListener = new CombatListener(configManager, teamService, loadoutService, roundService,
                 killstreakService);
         GunGameListener gunGameListener = new GunGameListener(configManager, gunGameService, roundService,
                 killstreakService);
         StatListener statListener = new StatListener(statService, roundService);
-        scoreboardService = new ScoreboardService(this, configManager, roundService);
+        scoreboardService = new ScoreboardService(this, configManager, roundService, teamColorService,
+                loadoutService, hillObjective);
         afkService = new AfkService(this, configManager, roundService);
 
         getServer().getPluginManager().registerEvents(spawnProtectionManager, this);
@@ -160,13 +177,18 @@ public final class Skirmish extends JavaPlugin {
         getServer().getPluginManager().registerEvents(statListener, this);
         getServer().getPluginManager().registerEvents(borderWallRenderer, this);
         getServer().getPluginManager().registerEvents(teamEnforcer, this);
+        getServer().getPluginManager().registerEvents(teamSelectGui, this);
         getServer().getPluginManager().registerEvents(killstreakService, this);
         getServer().getPluginManager().registerEvents(scoreboardService, this);
         getServer().getPluginManager().registerEvents(afkService, this);
+        getServer().getPluginManager().registerEvents(botJoinListener, this);
+        getServer().getPluginManager().registerEvents(teamColorService, this);
         scoreboardService.start();
         afkService.start();
+        botObjectiveTask.start();
 
         setExecutor("arena", new ArenaAdminCommand(arenaConfig));
+        setExecutor("obj", new ObjectiveCommand(roundService, hillObjective, dominationObjective));
         setExecutor("team", new TeamCommand(teamSelectGui, roundService));
         setExecutor("loadout", new LoadoutCommand(loadoutService, loadoutBuilderGui));
         setExecutor("loadouts", new LoadoutPresetCommand(loadoutPresetGui));
@@ -176,9 +198,11 @@ public final class Skirmish extends JavaPlugin {
         setExecutor("stats", statCommand);
         setExecutor("leaderboard", statCommand);
         setExecutor("history", statCommand);
+        setExecutor("bots", new BotCommand(botService));
+        setExecutor("botack", new BotAckCommand(botService));
 
         // Players should always be able to load straight into the current round rather
-        // than waiting on an admin — the arena is ready as soon as the plugin is.
+        // than waiting on an admin - the arena is ready as soon as the plugin is.
         if (!RoundService.PLAYABLE.isEmpty()) {
             roundService.startRound(RoundService.PLAYABLE.get(0));
         }
@@ -190,7 +214,8 @@ public final class Skirmish extends JavaPlugin {
     public void onDisable() {
         if (scoreboardService != null) scoreboardService.stop();
         if (afkService != null) afkService.stop();
-        // Dispose the round world copy — the template is never touched (design doc §7.3).
+        if (botObjectiveTask != null) botObjectiveTask.stop();
+        // Dispose the round world copy - the template is never touched (design doc §7.3).
         if (roundService != null) roundService.shutdown();
         if (deathSpectatorService != null) deathSpectatorService.stopAll();
         if (databaseManager != null) databaseManager.close();
@@ -208,16 +233,16 @@ public final class Skirmish extends JavaPlugin {
     }
 
     /**
-     * Loads the arena <em>template</em> — the pristine world admins build in and point
+     * Loads the arena <em>template</em> - the pristine world admins build in and point
      * {@code /arena} at. Rounds never run here; each one plays in a throwaway copy made by
      * {@link WorldManager} (design doc §7.3).
      *
-     * Never generates a missing world — a hand-built arena that isn't on disk is a setup
+     * Never generates a missing world - a hand-built arena that isn't on disk is a setup
      * mistake, not something to paper over with a fresh empty world.
      */
     private void loadArenaWorld(String name) {
         if (name == null || name.isBlank()) {
-            getLogger().warning("No arena world set in arena.yml — run /arena setworld in the arena.");
+            getLogger().warning("No arena world set in arena.yml - run /arena setworld in the arena.");
             return;
         }
         World world = Bukkit.getWorld(name);

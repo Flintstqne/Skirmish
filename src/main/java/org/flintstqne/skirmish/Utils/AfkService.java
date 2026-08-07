@@ -18,7 +18,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * AFK kick during warmup and between rounds only (§11 QoL pass) — never mid-round, so holding
+ * AFK kick during warmup and between rounds only (§11 QoL pass) - never mid-round, so holding
  * an objective or a defensive position doesn't read as AFK. Activity is any movement,
  * interaction, chat, or (re)join; checked on a slow poll rather than per-event.
  *

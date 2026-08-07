@@ -18,7 +18,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
-/** GUI front end for /leaderboard and /history (§11 QoL pass) — same data StatCommand's text
+/** GUI front end for /leaderboard and /history (§11 QoL pass) - same data StatCommand's text
  * output already reads from StatService, just picked with a click instead of typed. The text
  * commands stay as-is for scripted/no-args-known usage; these open when no args are given. */
 public final class StatGui {
@@ -26,7 +26,7 @@ public final class StatGui {
     private static final DateTimeFormatter TIMESTAMP =
             DateTimeFormatter.ofPattern("MM-dd HH:mm").withZone(ZoneId.systemDefault());
 
-    /** Display order + icon per leaderboard category — StatService's category set is
+    /** Display order + icon per leaderboard category - StatService's category set is
      * unordered, and a GUI needs a stable, readable order. */
     private static final List<String> CATEGORY_ORDER = List.of(
             "kills", "deaths", "knife_kills", "objective_points", "rounds_played", "rounds_won");

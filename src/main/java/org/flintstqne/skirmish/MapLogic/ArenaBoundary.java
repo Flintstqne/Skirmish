@@ -9,7 +9,7 @@ import org.bukkit.World;
  * ever attached at read time via {@link WorldManager} (design doc §7.3).
  *
  * The box's vertical extent always spans the world's full build height, regardless of the
- * Y a corner was set at — an admin standing anywhere when running `/arena set boundary`
+ * Y a corner was set at - an admin standing anywhere when running `/arena set boundary`
  * shouldn't cap where the wall reaches. Only X/Z come from the two corners.
  */
 public final class ArenaBoundary {

@@ -3,21 +3,17 @@ package org.flintstqne.skirmish.LoadoutLogic;
 import org.bukkit.entity.Player;
 import org.flintstqne.skirmish.ConfigManager;
 import org.flintstqne.skirmish.DatabaseManager;
-import org.flintstqne.skirmish.Utils.Branding;
 
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.logging.Logger;
 
 /**
- * Loadout presets — "My Loadouts" (design doc §7.6, §9.3), the persistent counterpart to
- * {@link LoadoutService}'s per-life economy. This is the only class that touches the
+ * Loadout presets - "My Loadouts" (design doc §7.6, §9.3), the persistent counterpart to
+ * {@link LoadoutService}'s round-scoped economy. This is the only class that touches the
  * {@code loadout_presets}/{@code active_loadout} tables (no separate `LoadoutPresetDb`,
- * per design doc §5) — everything goes through the shared {@link DatabaseManager}.
+ * per design doc §5) - everything goes through the shared {@link DatabaseManager}.
  */
 public final class LoadoutPresetService {
 
@@ -52,47 +48,27 @@ public final class LoadoutPresetService {
     }
 
     /**
-     * Saves the player's current in-progress selection as a new named preset.
+     * Saves an exact snapshot of the player's current inventory - every item in its current
+     * slot, armor included - as a new named preset. Applying it later (design doc §7.6,
+     * {@link LoadoutService#applyPreset}) restores that same layout, so nothing needs to be
+     * reorganized by hand.
      *
-     * Only categories affordable at {@code loadout.starting-points} are kept — a preset
-     * applies at the start of a life, when the balance has just reset to that value, so a
-     * paid item earned and bought mid-life (e.g. after a kill) could never actually equip
-     * from a preset anyway. Rather than silently downgrading it every single respawn, it's
-     * excluded from the save entirely; paid gear stays a live, one-life purchase through the
-     * builder GUI.
+     * No affordability filtering happens at save time anymore: now that Merit is round-scoped
+     * rather than per-life (it survives death and only resets next round), a preset saved
+     * early - while still holding an expensive item bought with a big accumulated balance -
+     * should be free to include it. {@link LoadoutService#applyPreset} already does the real
+     * affordability check live, against whatever the balance actually is at each respawn, and
+     * skips what doesn't fit; that's the only gate that still makes sense here.
      *
      * @return null if saving failed or {@code kits.max-saved-presets} was already reached
      */
     public LoadoutPreset save(Player player, String name) {
-        Map<LoadoutCatalog.Category, String> current = loadouts.getSelection(player);
-
-        Map<LoadoutCatalog.Category, Integer> costs = new EnumMap<>(LoadoutCatalog.Category.class);
-        for (Map.Entry<LoadoutCatalog.Category, String> entry : current.entrySet()) {
-            LoadoutCatalog.Entry catalogEntry = loadouts.getCatalog().get(entry.getValue());
-            if (catalogEntry != null) costs.put(entry.getKey(), catalogEntry.cost());
-        }
-        Set<LoadoutCatalog.Category> keepable = LoadoutService.affordableCategories(config.getStartingPoints(), costs);
-
-        Map<LoadoutCatalog.Category, String> savable = new EnumMap<>(LoadoutCatalog.Category.class);
-        List<String> excluded = new ArrayList<>();
-        for (Map.Entry<LoadoutCatalog.Category, String> entry : current.entrySet()) {
-            if (keepable.contains(entry.getKey())) {
-                savable.put(entry.getKey(), entry.getValue());
-                continue;
-            }
-            LoadoutCatalog.Entry catalogEntry = loadouts.getCatalog().get(entry.getValue());
-            excluded.add(catalogEntry != null ? catalogEntry.name() : entry.getValue());
-        }
-
+        Map<Integer, String> layout = loadouts.captureLayout(player);
         try {
             int count = db.countPresets(player.getUniqueId());
             if (count >= config.getMaxSavedPresets()) return null;
-            int id = db.createPreset(player.getUniqueId(), name, count, savable);
-            if (!excluded.isEmpty()) {
-                Branding.warning(player,
-                        "Not saved (paid gear doesn't carry into a new life): " + String.join(", ", excluded));
-            }
-            return new LoadoutPreset(id, name, count, Map.copyOf(savable));
+            int id = db.createPreset(player.getUniqueId(), name, count, layout);
+            return new LoadoutPreset(id, name, count, layout);
         } catch (SQLException e) {
             logFailure("save preset for " + player.getName(), e);
             return null;
@@ -133,17 +109,18 @@ public final class LoadoutPresetService {
     }
 
     /**
-     * Full respawn handling (design doc §7.6): reset the per-life balance, then either
-     * auto-equip the active preset (downgrading only what this life can't afford) or fall
-     * back to {@link LoadoutService#applyDefaults} if there isn't one.
+     * Full respawn handling (design doc §7.6, revised): Merit itself is round-scoped now, not
+     * per-life (see {@link LoadoutService#resetAll}) - a respawn just re-gears the player,
+     * either restoring the active preset's exact layout (skipping only what the current
+     * round-long balance can't afford) or falling back to {@link LoadoutService#applyDefaults}
+     * if there isn't one.
      */
     public void onRespawn(Player player) {
-        loadouts.resetPoints(player);
         if (!loadouts.isLoadoutsEnabled()) return;
 
         LoadoutPreset active = getActive(player);
         if (active != null) {
-            loadouts.applyPreset(player, active.selection());
+            loadouts.applyPreset(player, active.layout());
         } else {
             loadouts.applyDefaults(player);
         }

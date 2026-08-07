@@ -11,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** FFA's winner-by-score pick (design doc §8.4) — used both for a threshold win and a timer-expiry draw check. */
+/** FFA's winner-by-score pick (design doc §8.4) - used both for a threshold win and a timer-expiry draw check. */
 class RoundServiceTest {
 
     @Test
@@ -42,7 +42,7 @@ class RoundServiceTest {
 
     @Test
     void aLaterEqualScoreBreaksTheLeadRatherThanWinningItBack() {
-        // Encoded via insertion order: first entry takes the lead, second ties it — the
+        // Encoded via insertion order: first entry takes the lead, second ties it - the
         // eventual third, higher entry should cleanly resolve to a single winner again.
         UUID first = UUID.randomUUID();
         UUID tying = UUID.randomUUID();

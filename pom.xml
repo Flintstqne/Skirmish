@@ -79,7 +79,7 @@
 
         <!-- WeaponMechanics is not published to a public Maven repository as of writing.
              Add its repository/coordinates here once confirmed against the installed
-             version (see docs/SKIRMISH_GAMEMODE_DESIGN.md §3) — most setups install it
+             version (see docs/SKIRMISH_GAMEMODE_DESIGN.md §3) - most setups install it
              locally via `mvn install:install-file` and depend on it with scope=provided. -->
     </repositories>
 
@@ -106,7 +106,7 @@
             <version>0.11.6</version>
         </dependency>
 
-        <!-- WeaponMechanics (+ its MechanicsCore runtime) — supplied by the server.
+        <!-- WeaponMechanics (+ its MechanicsCore runtime) - supplied by the server.
              Verified against 4.1.0 and 4.3.1: generateWeapon/getWeaponTitle and the
              WeaponKillEntityEvent / WeaponDamageEntityEvent / WeaponMeleeHitEvent API
              used here are identical in both. -->

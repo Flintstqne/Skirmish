@@ -11,7 +11,7 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Gun Game's weapon ladder (design doc §8.5) — per-player tier index, ephemeral and
+ * Gun Game's weapon ladder (design doc §8.5) - per-player tier index, ephemeral and
  * round-scoped like everything else in this gamemode. No loadout shop, no cost, no catalog:
  * each tier is generated directly from {@code gungame.weapon-ladder} by WM title.
  */
@@ -26,7 +26,7 @@ public final class GunGameService {
         this.weapons = weapons;
     }
 
-    /** Everyone back to tier 0 — called once at round start, not on every respawn. */
+    /** Everyone back to tier 0 - called once at round start, not on every respawn. */
     public void resetAll() {
         tiers.clear();
     }
@@ -39,23 +39,23 @@ public final class GunGameService {
         return isFinalTier(getTier(player), config.getWeaponLadder().size());
     }
 
-    /** Already at tier 0 — a knife death here has no lower tier to demote into. */
+    /** Already at tier 0 - a knife death here has no lower tier to demote into. */
     public boolean isFloorTier(Player player) {
         return getTier(player) == 0;
     }
 
-    /** Advances one tier and re-equips immediately — a no-op if already at the final tier. */
+    /** Advances one tier and re-equips immediately - a no-op if already at the final tier. */
     public void promote(Player player) {
         int ladderSize = config.getWeaponLadder().size();
         if (ladderSize == 0) return;
         int next = nextTierAfterPromotion(getTier(player), ladderSize);
-        if (next == getTier(player)) return; // already at the top — nothing to promote to
+        if (next == getTier(player)) return; // already at the top - nothing to promote to
         tiers.put(player.getUniqueId(), next);
         equip(player);
     }
 
     /**
-     * Drops one tier. Doesn't re-equip — the victim is dead; their new tier takes effect at
+     * Drops one tier. Doesn't re-equip - the victim is dead; their new tier takes effect at
      * their next respawn via {@link #equip}, same as any other tier read.
      */
     public void demote(Player player) {
@@ -80,7 +80,7 @@ public final class GunGameService {
     }
 
     /**
-     * Gives the player their current tier's weapon, plus a knife — unless they're already
+     * Gives the player their current tier's weapon, plus a knife - unless they're already
      * on the knife tier, which is the ladder's last entry and never gets a duplicate (§8.5).
      */
     public void equip(Player player) {

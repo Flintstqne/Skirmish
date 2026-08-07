@@ -3,7 +3,7 @@ version: '1'
 main: org.flintstqne.skirmish.Skirmish
 api-version: '1.21'
 # InventoryFramework is shaded and relocated into this jar (see pom.xml), so it must NOT be
-# declared here — requiring the standalone IF plugin would block enabling for no reason.
+# declared here - requiring the standalone IF plugin would block enabling for no reason.
 depend: [WeaponMechanics]
 
 commands:
@@ -18,15 +18,18 @@ commands:
     usage: /team
   arena:
     description: Arena map-data setup (spawns, hill points, capture points, boundary)
-    usage: /arena <set|add> <spawn|boundary|world|ffaspawn|hillpoint|capturepoint> [args]
+    usage: /arena <set|add|get> <spawn|boundary|world|ffaspawn|hillpoint|capturepoint> [args]
     permission: skirmish.admin
+  obj:
+    description: Show the coordinates of the current live objective (KOTH hill / Domination points)
+    usage: /obj
   round:
     description: Manually start or end a round, overriding the vote-driven flow
     usage: /round <start <mode>|end|status>
     permission: skirmish.admin
   admin:
-    description: Admin debug tools (points economy, config reload, round diagnostics, stats reset)
-    usage: /admin <points <set|get> <player> [amount]|stats reset <player|all>|reload|diagnostics>
+    description: Admin debug tools (Merit economy, config reload, round diagnostics, stats reset)
+    usage: /admin <merit <set|get> <player> [amount]|stats reset <player|all>|reload|diagnostics>
     permission: skirmish.admin
   stats:
     description: Show lifetime stats for yourself or another player
@@ -37,8 +40,26 @@ commands:
   history:
     description: Show the server's most recent rounds
     usage: /history [count]
+  bots:
+    description: Spawn or despawn SkirmishAI bots
+    usage: /bots <spawn <count>|despawn <name|all>|list>
+    permission: skirmish.admin
+  botack:
+    description: Used by the SkirmishAI bot controller to confirm a bot has connected
+    usage: /botack <code>
+    permission: skirmish.botcontroller
 
 permissions:
   skirmish.admin:
     description: Access to Skirmish admin commands
+    default: op
+  skirmish.botcontroller:
+    description: Allows confirming bot spawns via /botack (grant only to the bot controller account)
+    # "false" grants this to NOBODY, not even operators - Bukkit's OP-bypass only applies to
+    # permissions declared "op". Confirmed live: SKIRMISHBOT was opped from the start, but
+    # /botack was silently permission-denied every single time (Bukkit logs "X issued server
+    # command" *before* the permission check, so the command appeared to fire in every log
+    # while never once reaching BotAckCommand) - this one misconfigured default was the root
+    # cause of bots never going LIVE, never receiving a real ally roster, and therefore always
+    # targeting the teammate standing next to them instead of a real enemy.
     default: op

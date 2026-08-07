@@ -35,7 +35,7 @@ class VoteServiceTest {
 
     @Test
     void emptyIntersectionFallsBackToTdmRatherThanNoOptions() {
-        // Config could disable everything that is currently implemented — the round loop
+        // Config could disable everything that is currently implemented - the round loop
         // still has to be able to start something.
         VoteService votes = service(List.of(GamemodeType.KOTH), List.of(GamemodeType.TDM));
         assertEquals(List.of(GamemodeType.TDM), votes.getOptions());
@@ -88,7 +88,7 @@ class VoteServiceTest {
     @Test
     void tiesAndEmptyTalliesStillYieldAPlayableWinner() {
         VoteService votes = service(ALL, List.of(GamemodeType.TDM, GamemodeType.FFA));
-        // Nobody voted — the round loop must still get a mode it can actually start.
+        // Nobody voted - the round loop must still get a mode it can actually start.
         assertTrue(votes.getOptions().contains(votes.getWinner()));
 
         votes.vote(UUID.randomUUID(), GamemodeType.TDM);

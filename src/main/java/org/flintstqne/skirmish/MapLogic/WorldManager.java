@@ -8,6 +8,7 @@ import org.bukkit.World;
 import org.bukkit.WorldCreator;
 import org.bukkit.entity.Player;
 import org.flintstqne.skirmish.Skirmish;
+import org.flintstqne.skirmish.Utils.Branding;
 
 import java.io.File;
 import java.io.IOException;
@@ -93,7 +94,7 @@ public final class WorldManager {
     public void prepareRoundWorld(Consumer<World> callback) {
         String templateName = arena.getWorldName();
         if (templateName == null || templateName.isBlank()) {
-            plugin.getLogger().severe("No arena world set — run /arena setworld in the template world.");
+            plugin.getLogger().severe("No arena world set - run /arena setworld in the template world.");
             callback.accept(null);
             return;
         }
@@ -105,7 +106,7 @@ public final class WorldManager {
             return;
         }
 
-        // A loaded template keeps ticking — mobs walk between chunks, autosave fires — so
+        // A loaded template keeps ticking - mobs walk between chunks, autosave fires - so
         // a mid-copy write races the copy and produces corrupt regionfiles and duplicate
         // entities in the result. World#save() alone doesn't stop that; only a full unload
         // (which blocks until every chunk is flushed and closed) does.
@@ -134,11 +135,19 @@ public final class WorldManager {
         if (templateWorld == null) return false;
 
         Location fallback = fallbackSpawn(templateWorld);
-        for (Player player : templateWorld.getPlayers()) player.teleport(fallback);
+        for (Player player : templateWorld.getPlayers()) {
+            player.teleport(fallback);
+            // Otherwise an admin mid-/arena-setup gets silently moved into the round world
+            // with no explanation - exactly the confusion behind the "unknown error" on
+            // /arena add, since map-data commands only work from the template (see
+            // ArenaAdminCommand's isInTemplateWorld guard).
+            Branding.warning(player, "A new round is starting - you were moved out of the "
+                    + "arena template. Run /arena tp to go back if you're still setting up the map.");
+        }
 
         if (!Bukkit.unloadWorld(templateWorld, true)) {
             plugin.getLogger().warning("Could not unload arena template '" + templateName
-                    + "' before copying it — the round world may come out corrupted.");
+                    + "' before copying it - the round world may come out corrupted.");
             return false;
         }
         return true;
@@ -186,7 +195,7 @@ public final class WorldManager {
     public void unloadAndDelete(World world) {
         if (world == null) return;
         if (!world.getName().startsWith(ROUND_PREFIX)) {
-            plugin.getLogger().warning("Refusing to delete '" + world.getName() + "' — not a round world.");
+            plugin.getLogger().warning("Refusing to delete '" + world.getName() + "' - not a round world.");
             return;
         }
 
@@ -200,7 +209,7 @@ public final class WorldManager {
         }
         if (!deleteRecursively(folder.toPath())) {
             plugin.getLogger().warning("Could not fully delete '" + folder.getName()
-                    + "' — it will be swept on next startup.");
+                    + "' - it will be swept on next startup.");
         }
     }
 

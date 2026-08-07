@@ -18,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** Catalog parsing (design doc §7.5.1) — keys are what presets store, so bad data must not silently resolve. */
+/** Catalog parsing (design doc §7.5.1) - keys are what presets store, so bad data must not silently resolve. */
 class LoadoutCatalogTest {
 
     @TempDir
@@ -110,6 +110,34 @@ class LoadoutCatalogTest {
     }
 
     @Test
+    void freeArmorSetIsEveryZeroCostArmorEntryNotJustTheFirst() throws IOException {
+        load("""
+                categories:
+                  armor:
+                    - {key: diamond_helmet, name: "Diamond Helmet", item: DIAMOND_HELMET, cost: 0}
+                    - {key: diamond_boots,  name: "Diamond Boots",  item: DIAMOND_BOOTS,  cost: 0}
+                    - {key: netherite_helmet, name: "Netherite Helmet", item: NETHERITE_HELMET, cost: 150}
+                """);
+
+        assertEquals(List.of("diamond_helmet", "diamond_boots"),
+                catalog.getFreeArmorSet().stream().map(LoadoutCatalog.Entry::key).toList());
+    }
+
+    @Test
+    void freeToolSetIsEveryZeroCostToolEntryNotJustTheFirst() throws IOException {
+        load("""
+                categories:
+                  tool:
+                    - {key: knife,       name: "Combat Knife", wm-weapon: "Combat_Knife", cost: 0}
+                    - {key: pickaxe,     name: "Pickaxe",      item: DIAMOND_PICKAXE,      cost: 0}
+                    - {key: grenade,     name: "Grenade",      wm-weapon: "Grenade",       cost: 100}
+                """);
+
+        assertEquals(List.of("knife", "pickaxe"),
+                catalog.getFreeToolSet().stream().map(LoadoutCatalog.Entry::key).toList());
+    }
+
+    @Test
     void totalCostIgnoresKeysThatNoLongerExist() throws IOException {
         load("""
                 categories:
@@ -119,7 +147,7 @@ class LoadoutCatalogTest {
                     - {key: vest, name: "Vest", item: IRON_CHESTPLATE, cost: 150}
                 """);
 
-        // A preset saved before a rebalance can point at a key that was since removed —
+        // A preset saved before a rebalance can point at a key that was since removed -
         // it must not blow up or inflate the bill (§5.1).
         assertEquals(150, catalog.totalCost(List.of("ak47", "vest", "deleted_key")));
         assertEquals(0, catalog.totalCost(List.of()));

@@ -16,5 +16,5 @@ dependency-reduced-pom.xml
 .claude/
 .idea/
 
-# Local MCP server config (e.g. Blockbench MCP at localhost) — machine-specific, not shared
+# Local MCP server config (e.g. Blockbench MCP at localhost) - machine-specific, not shared
 .mcp.json

@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** FFA's min-spawn-distance rule (design doc §8.4) — don't spawn someone next to a fight. */
+/** FFA's min-spawn-distance rule (design doc §8.4) - don't spawn someone next to a fight. */
 class RandomSpawnSelectorTest {
 
     @Test
@@ -27,7 +27,7 @@ class RandomSpawnSelectorTest {
 
     @Test
     void exactlyAtTheThresholdIsAccepted() {
-        // "min distance" reads as >= — exactly 15 blocks away counts as far enough.
+        // "min distance" reads as >= - exactly 15 blocks away counts as far enough.
         double[][] occupied = {{15, 64, 0}};
         assertTrue(RandomSpawnSelector.isFarEnough(new double[] {0, 64, 0}, occupied, 15));
     }

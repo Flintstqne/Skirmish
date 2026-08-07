@@ -22,14 +22,14 @@ import java.util.Locale;
 import java.util.stream.Collectors;
 
 /**
- * /admin — debug/admin tools (design doc §10): the per-life point economy, a config reload,
- * round-state diagnostics, and a lifetime-stats reset. Targets any online player by name for
- * the point commands, not just the sender — testing a loadout's afford-gate usually means
- * checking someone else's balance, not your own.
+ * /admin - debug/admin tools (design doc §10): the round-scoped Merit economy, a config
+ * reload, round-state diagnostics, and a lifetime-stats reset. Targets any online player by
+ * name for the Merit commands, not just the sender - testing a loadout's afford-gate usually
+ * means checking someone else's balance, not your own.
  */
 public final class AdminCommand implements CommandExecutor, TabCompleter {
 
-    private static final String USAGE = "/admin <points <set|get> <player> [amount]"
+    private static final String USAGE = "/admin <merit <set|get> <player> [amount]"
             + "|stats reset <player|all>|reload|diagnostics>";
 
     private final LoadoutService loadouts;
@@ -59,7 +59,7 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
             }
             case "diagnostics" -> runDiagnostics(sender);
             case "stats" -> runStatsReset(sender, args);
-            case "points" -> runPoints(sender, args);
+            case "merit" -> runMerit(sender, args);
             default -> usage(sender);
         }
         return true;
@@ -89,7 +89,7 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
         Branding.error(sender, "Reset lifetime stats for " + target.getName() + ".");
     }
 
-    private boolean runPoints(CommandSender sender, String[] args) {
+    private boolean runMerit(CommandSender sender, String[] args) {
         if (args.length < 2) {
             usage(sender);
             return true;
@@ -115,8 +115,8 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
                     Branding.error(sender, "Amount can't be negative.");
                     return true;
                 }
-                loadouts.setPoints(target, amount);
-                Branding.success(sender, "Set " + target.getName() + "'s points to " + amount + ".");
+                loadouts.setMerit(target, amount);
+                Branding.success(sender, "Set " + target.getName() + "'s Merit to " + amount + ".");
             }
             case "get" -> {
                 if (args.length < 3) {
@@ -125,7 +125,7 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
                 }
                 Player target = resolvePlayer(sender, args[2]);
                 if (target == null) return true;
-                Branding.info(sender, target.getName() + " has " + loadouts.getPoints(target) + " points this life.");
+                Branding.info(sender, target.getName() + " has " + loadouts.getMerit(target) + " Merit this round.");
             }
             default -> usage(sender);
         }
@@ -152,9 +152,9 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
     public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command,
                                                 @NotNull String alias, String[] args) {
         List<String> options = switch (args.length) {
-            case 1 -> List.of("points", "stats", "reload", "diagnostics");
+            case 1 -> List.of("merit", "stats", "reload", "diagnostics");
             case 2 -> switch (args[0].toLowerCase(Locale.ROOT)) {
-                case "points" -> List.of("set", "get");
+                case "merit" -> List.of("set", "get");
                 case "stats" -> List.of("reset");
                 default -> List.<String>of();
             };

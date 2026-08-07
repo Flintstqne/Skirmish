@@ -42,7 +42,7 @@ public final class EndRoundSequence {
      * @param playerWinner the winning player for individual modes (FFA, §8.4), null for a draw
      */
     public void run(GamemodeType mode, Team teamWinner, Player playerWinner, int redScore, int blueScore) {
-        // Step 2: everyone — alive or already dead — goes to free-roam spectator.
+        // Step 2: everyone - alive or already dead - goes to free-roam spectator.
         for (Player player : plugin.getServer().getOnlinePlayers()) {
             spectators.stop(player);
             if (config.isFreeRoamSpectator()) spectators.startFreeRoam(player);
@@ -64,7 +64,7 @@ public final class EndRoundSequence {
             title = teamWinner == null
                     ? Component.text("DRAW", NamedTextColor.YELLOW)
                     : Component.text(teamWinner.getDisplayName().toUpperCase() + " WINS!", teamWinner.getColor());
-            subtitle = Component.text("Final Score: " + redScore + " – " + blueScore, NamedTextColor.WHITE);
+            subtitle = Component.text("Final Score: " + redScore + " - " + blueScore, NamedTextColor.WHITE);
         } else {
             title = playerWinner == null
                     ? Component.text("DRAW", NamedTextColor.YELLOW)
@@ -81,7 +81,7 @@ public final class EndRoundSequence {
         plugin.getServer().getOnlinePlayers().forEach(player -> player.showTitle(card));
     }
 
-    /** MVP/top-fragger recap (§11 item 7) — most kills this round, regardless of gamemode. */
+    /** MVP/top-fragger recap (§11 item 7) - most kills this round, regardless of gamemode. */
     private void announceMvp() {
         Player mvp = rounds.getMvp();
         if (mvp == null) return;
@@ -111,7 +111,7 @@ public final class EndRoundSequence {
     }
 
     /**
-     * Steps 6-7: close the vote and start the winning gamemode. There is no revert step —
+     * Steps 6-7: close the vote and start the winning gamemode. There is no revert step -
      * the next round clones a fresh world and this one's copy is deleted behind it (§7.3).
      */
     private void finish() {

@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
 
-/** /round — manual override of the vote-driven flow, for testing (design doc §10). */
+/** /round - manual override of the vote-driven flow, for testing (design doc §10). */
 public final class RoundCommand implements CommandExecutor, TabCompleter {
 
     private final RoundService rounds;

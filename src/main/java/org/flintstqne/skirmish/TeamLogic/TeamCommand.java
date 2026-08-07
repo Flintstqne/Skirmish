@@ -11,8 +11,8 @@ import org.flintstqne.skirmish.Utils.Branding;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * /team — opens the select GUI whether or not the player already has a team (§7.2).
- * Blocked in teamless gamemodes (FFA, Gun Game — §7.2/§9.4/§9.5), same pattern as
+ * /team - opens the select GUI whether or not the player already has a team (§7.2).
+ * Blocked in teamless gamemodes (FFA, Gun Game - §7.2/§9.4/§9.5), same pattern as
  * {@code /loadout}'s block in gamemodes without a loadout shop.
  */
 public final class TeamCommand implements CommandExecutor {

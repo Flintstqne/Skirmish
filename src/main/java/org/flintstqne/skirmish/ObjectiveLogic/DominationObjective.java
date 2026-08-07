@@ -1,5 +1,6 @@
 package org.flintstqne.skirmish.ObjectiveLogic;
 
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Color;
 import org.bukkit.Location;
 import org.bukkit.Particle;
@@ -15,9 +16,11 @@ import org.flintstqne.skirmish.Skirmish;
 import org.flintstqne.skirmish.StatLogic.StatService;
 import org.flintstqne.skirmish.TeamLogic.Team;
 import org.flintstqne.skirmish.TeamLogic.TeamService;
+import org.flintstqne.skirmish.Utils.Branding;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -29,7 +32,7 @@ import java.util.Random;
  * rather than a shared base class (see {@link CapturePoint#tick}).
  *
  * Scoring is {@code zones_controlled × points-per-tick-per-zone}, evaluated every
- * {@code tick-interval-seconds} — genuinely different from KOTH's flat per-second-per-hill,
+ * {@code tick-interval-seconds} - genuinely different from KOTH's flat per-second-per-hill,
  * since every zone has to be summed together each tick rather than resolved independently.
  */
 public final class DominationObjective {
@@ -47,6 +50,7 @@ public final class DominationObjective {
 
     private List<CapturePoint> points = List.of();
     private BukkitTask task;
+    private final Map<CapturePoint, Team> lastOwner = new HashMap<>();
 
     public DominationObjective(Skirmish plugin, ConfigManager config, ArenaConfig arena, WorldManager worlds,
                                TeamService teams, DeathSpectatorService spectators, RoundService rounds,
@@ -71,7 +75,7 @@ public final class DominationObjective {
         stop();
         Map<String, Location> pool = arena.getCapturePoints();
         if (pool.isEmpty()) {
-            plugin.getLogger().warning("Domination round started with no capture points configured — "
+            plugin.getLogger().warning("Domination round started with no capture points configured - "
                     + "run /arena add capturepoint <name> in the template first.");
             return;
         }
@@ -88,10 +92,16 @@ public final class DominationObjective {
         points = List.copyOf(chosen);
         if (points.isEmpty()) return;
 
-        // ponytail: compass anchors on the first chosen zone — a single compass can't usefully
+        lastOwner.clear();
+        for (CapturePoint point : points) {
+            ObjectiveParticleManager.placeBeacon(point.getLocation());
+            ObjectiveParticleManager.clearSkyAbove(point.getLocation());
+        }
+
+        // ponytail: compass anchors on the first chosen zone - a single compass can't usefully
         // point at "whichever of N zones is nearest" without per-player dynamic tracking, which
         // isn't worth building until someone actually asks for it.
-        ui.start(points.get(0).getLocation(), "Domination: 0 – 0 zones");
+        ui.start(points.get(0).getLocation(), "Domination: 0 - 0 zones");
 
         int intervalTicks = Math.max(1, config.getDominationTickIntervalSeconds() * 20);
         task = plugin.getServer().getScheduler().runTaskTimer(plugin, this::tick, intervalTicks, intervalTicks);
@@ -111,14 +121,19 @@ public final class DominationObjective {
 
         double radiusSq = (double) config.getDominationCaptureRadius() * config.getDominationCaptureRadius();
         int perZone = config.getDominationPointsPerTickPerZone();
+        double rateSeconds = config.getDominationTickIntervalSeconds();
+        double maxSeconds = config.getDominationCaptureTimeSeconds();
         int redZones = 0;
         int blueZones = 0;
         for (CapturePoint point : points) {
-            Team holder = point.tick(teams, spectators, radiusSq);
-            if (holder == Team.RED) redZones++;
-            else if (holder == Team.BLUE) blueZones++;
-            drawBeam(point, holder);
-            // Same warmup-window guard as HillObjective — ticks run through WAITING/warmup
+            Team owner = point.tick(teams, spectators, radiusSq, rateSeconds, maxSeconds);
+            if (owner == Team.RED) redZones++;
+            else if (owner == Team.BLUE) blueZones++;
+            if (owner != null && owner != lastOwner.get(point)) announceCapture(point, owner);
+            lastOwner.put(point, owner);
+            drawBeacon(point, owner);
+            drawRing(point, owner);
+            // Same warmup-window guard as HillObjective - ticks run through WAITING/warmup
             // too, and addTeamScore below already no-ops then; the stat credit must match.
             if (rounds.isActive()) {
                 for (Player player : point.getHolderPlayers()) {
@@ -133,14 +148,35 @@ public final class DominationObjective {
         updateUi(redZones, blueZones);
     }
 
-    private void drawBeam(CapturePoint point, Team holder) {
+    /** Fires once per actual flip (tracked via {@link #lastOwner}), not every tick a zone
+     * stays owned - same broadcast-on-change shape as HillObjective's "The hill has moved!". */
+    private void announceCapture(CapturePoint point, Team owner) {
+        NamedTextColor color = owner == Team.RED ? Branding.TEAM_RED : Branding.TEAM_BLUE;
+        String text = point.getName() + " captured by " + owner.getDisplayName() + "!";
+        for (Player player : plugin.getServer().getOnlinePlayers()) {
+            player.sendMessage(Branding.message(text, color));
+        }
+    }
+
+    /** A real beacon light beam, not a particle column - "blatant" was the ask, and a vanilla
+     * beacon beam reads from across the map in a way a thin particle line never did. The
+     * pyramid/beacon itself is placed once in {@link #start}; this just keeps the glass cap's
+     * color tracking the current holder. */
+    private void drawBeacon(CapturePoint point, Team owner) {
+        Color color = owner == null ? Color.WHITE : owner == Team.RED ? Color.RED : Color.BLUE;
+        ObjectiveParticleManager.setBeaconColor(point.getLocation(), color);
+    }
+
+    /** Marks the actual capture radius on the ground - same shared ring renderer KOTH uses,
+     * just at Domination's (larger) capture-radius-blocks and per-zone owner color. */
+    private void drawRing(CapturePoint point, Team owner) {
         Particle particle = resolveParticle();
-        Color color = holder == null ? Color.WHITE : holder == Team.RED ? Color.RED : Color.BLUE;
-        ObjectiveParticleManager.drawBeam(point.getLocation(), config.getDominationBeamHeight(), particle, color, 2);
+        Color color = owner == null ? Color.WHITE : owner == Team.RED ? Color.RED : Color.BLUE;
+        ObjectiveParticleManager.drawRing(point.getLocation(), config.getDominationCaptureRadius(), particle, color, 48);
     }
 
     private void updateUi(int redZones, int blueZones) {
-        String status = "Domination: Red " + redZones + " – Blue " + blueZones + " zones";
+        String status = "Domination: Red " + redZones + " - Blue " + blueZones + " zones";
         Team leader = redZones == blueZones ? null : redZones > blueZones ? Team.RED : Team.BLUE;
         int threshold = config.getScoreThreshold(GamemodeType.DOMINATION);
         int score = leader == null ? 0 : rounds.getScore(leader);
@@ -149,10 +185,10 @@ public final class DominationObjective {
 
     private Particle resolveParticle() {
         try {
-            return Particle.valueOf(config.getDominationParticleBeam());
+            return Particle.valueOf(config.getDominationParticleRing());
         } catch (IllegalArgumentException e) {
-            plugin.getLogger().warning("Unknown domination.particle-beam '" + config.getDominationParticleBeam()
-                    + "' — falling back to DUST.");
+            plugin.getLogger().warning("Unknown domination.particle-ring '" + config.getDominationParticleRing()
+                    + "' - falling back to DUST.");
             return Particle.DUST;
         }
     }

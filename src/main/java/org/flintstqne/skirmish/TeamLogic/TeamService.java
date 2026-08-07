@@ -15,10 +15,10 @@ import java.util.UUID;
 
 /**
  * Team assignment, imbalance locking and swap incentive (design doc §7.2).
- * Assignments are in-memory only — teams are round-scoped, nothing here touches data.db.
+ * Assignments are in-memory only - teams are round-scoped, nothing here touches data.db.
  *
- * Assignments deliberately survive a disconnect — a player who reconnects mid-round keeps
- * their team (see {@link org.flintstqne.skirmish.TeamLogic.TeamEnforcer}) — and are only
+ * Assignments deliberately survive a disconnect - a player who reconnects mid-round keeps
+ * their team (see {@link org.flintstqne.skirmish.TeamLogic.TeamEnforcer}) - and are only
  * ever wiped in bulk by {@link #clearAll()} at the start of the next round.
  */
 public final class TeamService {
@@ -86,8 +86,8 @@ public final class TeamService {
     }
 
     /**
-     * Voluntary switch to the short team. Just the assignment — the swap incentive bonus
-     * (§7.2, {@code config.getSwapIncentivePoints()}) is awarded by the caller
+     * Voluntary switch to the short team. Just the assignment - the swap incentive bonus
+     * (§7.2, {@code config.getSwapIncentiveMerit()}) is awarded by the caller
      * ({@link TeamSelectGui}) on a successful swap, since that's where the amount is
      * already read to render the GUI button.
      */
@@ -103,7 +103,7 @@ public final class TeamService {
     }
 
     /**
-     * Random spawn for the player's team, re-bound onto the live round world — arena.yml
+     * Random spawn for the player's team, re-bound onto the live round world - arena.yml
      * coordinates belong to the template, which is never played in (§7.3).
      */
     public Location getSpawn(Player player) {
@@ -114,13 +114,25 @@ public final class TeamService {
         return spawn == null ? defaultSpawn(player) : spawn;
     }
 
+    /**
+     * A random spawn for an arbitrary team, not tied to a specific player - null if none are
+     * configured. Used by {@link org.flintstqne.skirmish.BotLogic.BotObjectiveTask} to point
+     * bots at the opposing team's spawn in gamemodes with no capture objective (TDM), since
+     * team spawns can easily be farther apart than a bot's targeting range.
+     */
+    public Location getSpawn(Team team) {
+        List<Location> spawns = arena.getTeamSpawns(team.name());
+        if (spawns.isEmpty()) return null;
+        return worlds.toActiveWorld(spawns.get(random.nextInt(spawns.size())));
+    }
+
     private Location defaultSpawn(Player player) {
         return worlds.hasActiveWorld()
                 ? worlds.getActiveWorld().getSpawnLocation()
                 : player.getWorld().getSpawnLocation();
     }
 
-    /** All configured team spawns, on the live round world — used by spawn zones (§7.7). */
+    /** All configured team spawns, on the live round world - used by spawn zones (§7.7). */
     public List<Location> getAllTeamSpawns() {
         List<Location> all = new java.util.ArrayList<>();
         for (Team t : Team.values()) {

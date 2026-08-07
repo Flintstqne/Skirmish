@@ -26,7 +26,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * "My Loadouts" GUI (design doc §9.3). Left-click sets a preset active (persists across
- * rounds and restarts — distinct from the per-life economy); right-click deletes;
+ * rounds and restarts - distinct from the per-life economy); right-click deletes;
  * shift-click renames via a chat-capture prompt (no AnvilGUI dependency needed for one field).
  */
 public final class LoadoutPresetGui implements Listener {
@@ -36,7 +36,7 @@ public final class LoadoutPresetGui implements Listener {
     private final LoadoutService loadouts;
     private final LoadoutBuilderGui builderGui;
     /** Player awaiting a chat-typed rename → the preset id it applies to. A ConcurrentHashMap
-     * because {@link AsyncChatEvent} fires off the main thread — writes happen from GUI clicks
+     * because {@link AsyncChatEvent} fires off the main thread - writes happen from GUI clicks
      * and PlayerQuitEvent on the main thread, so a plain HashMap here would be a real data race. */
     private final Map<UUID, Integer> pendingRename = new ConcurrentHashMap<>();
 
@@ -70,8 +70,19 @@ public final class LoadoutPresetGui implements Listener {
         boolean isActive = active != null && active.id() == preset.id();
 
         List<Component> lore = new ArrayList<>();
-        LoadoutCatalog.Entry primary = loadouts.getCatalog().get(preset.selection().get(LoadoutCatalog.Category.PRIMARY));
-        if (primary != null) lore.add(text(primary.name(), NamedTextColor.GRAY));
+        // Preview a few of what this preset would restore - not the whole layout, which for a
+        // potion-heavy preset could run long.
+        int shown = 0;
+        for (String key : preset.layout().values()) {
+            if (shown >= 3) {
+                lore.add(text("...", NamedTextColor.DARK_GRAY));
+                break;
+            }
+            LoadoutCatalog.Entry entry = loadouts.getCatalog().get(key);
+            if (entry == null) continue;
+            lore.add(text(entry.name(), NamedTextColor.GRAY));
+            shown++;
+        }
         lore.add(isActive ? text("★ Active", NamedTextColor.GREEN) : text("Click to set active", NamedTextColor.YELLOW));
         lore.add(text("Right-click to delete", NamedTextColor.DARK_GRAY));
         lore.add(text("Shift-click to rename", NamedTextColor.DARK_GRAY));

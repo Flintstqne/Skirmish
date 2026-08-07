@@ -15,18 +15,18 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
-/** Killstreak/multikill callouts (§11 item 5) — a per-life counter, reset on death, broadcast
- * to everyone whenever it crosses a configured threshold. Optional bonus points, off by default
- * since per-life points are already the game's snowball risk (see config.yml).
+/** Killstreak/multikill callouts (§11 item 5) - a per-life counter, reset on death, broadcast
+ * to everyone whenever it crosses a configured threshold. Optional bonus Merit, off by default
+ * since per-life Merit is already the game's snowball risk (see config.yml).
  *
  * Gated off entirely for Gun Game (design doc §8.5's win condition already *is* consecutive
- * kills up a ladder — `GunGameListener`'s tier progress already communicates that, and a
+ * kills up a ladder - `GunGameListener`'s tier progress already communicates that, and a
  * second streak counter on top would be redundant, differently-paced noise). */
 public final class KillstreakService implements Listener {
 
-    /** Multi-kill callout by kills-within-the-window count (§11 QoL pass) — distinct from the
+    /** Multi-kill callout by kills-within-the-window count (§11 QoL pass) - distinct from the
      * per-life {@code streaks} below: this counts kill *speed*, not kills-without-dying, so
-     * dying between two fast kills doesn't reset it. Capped at "Frenzy" past 5 — "Rampage" is
+     * dying between two fast kills doesn't reset it. Capped at "Frenzy" past 5 - "Rampage" is
      * already a config.yml threshold name below and the two would otherwise collide. */
     private static final Map<Integer, String> MULTIKILL_NAMES =
             Map.of(2, "Double Kill", 3, "Triple Kill", 4, "Quad Kill", 5, "Penta Kill");
@@ -50,8 +50,8 @@ public final class KillstreakService implements Listener {
         int streak = streaks.merge(killer.getUniqueId(), 1, Integer::sum);
         String callout = config.getKillstreakThresholds().get(streak);
         if (callout != null) {
-            if (config.isKillstreakBonusPointsEnabled()) {
-                loadouts.addPoints(killer, config.getKillstreakBonusPointsPerThreshold());
+            if (config.isKillstreakBonusMeritEnabled()) {
+                loadouts.addMerit(killer, config.getKillstreakBonusMeritPerThreshold());
             }
             Component message = Branding.message(
                     killer.getName() + " is on a " + callout + "! (" + streak + " kills)", Branding.BRAND);

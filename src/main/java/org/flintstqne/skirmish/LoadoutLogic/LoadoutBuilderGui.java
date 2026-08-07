@@ -13,14 +13,15 @@ import org.flintstqne.skirmish.Utils.Branding;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
 /**
- * Loadout builder GUI (design doc §9.2). Row 0 = category tabs, rows 1-4 = the tier grid
- * for the open tab, row 5 = footer. Selecting equips immediately — the footer is a live
- * summary, not a submit button (§7.5.3).
+ * Loadout builder GUI (design doc §9.2) - a bedwars-style shop. Row 0 = category tabs,
+ * rows 1-4 = the tier grid for the open tab, row 5 = footer. Buying equips/adds immediately -
+ * the footer is a live summary, not a submit button (§7.5.3).
  */
 public final class LoadoutBuilderGui {
 
@@ -33,7 +34,7 @@ public final class LoadoutBuilderGui {
     private final LoadoutPresetService presets;
     private final Map<UUID, LoadoutCatalog.Category> openTab = new HashMap<>();
 
-    /** Set once, right after construction — see the Skirmish wiring for why this can't be a constructor arg. */
+    /** Set once, right after construction - see the Skirmish wiring for why this can't be a constructor arg. */
     private LoadoutPresetGui presetsGui;
 
     public LoadoutBuilderGui(LoadoutService loadouts, LoadoutPresetService presets) {
@@ -52,7 +53,7 @@ public final class LoadoutBuilderGui {
     public void open(Player player, LoadoutCatalog.Category tab) {
         openTab.put(player.getUniqueId(), tab);
 
-        ChestGui gui = new ChestGui(ROWS, "Loadout");
+        ChestGui gui = new ChestGui(ROWS, "Loadout Shop");
         gui.setOnGlobalClick(event -> event.setCancelled(true));
         StaticPane pane = new StaticPane(0, 0, WIDTH, ROWS);
         gui.addPane(pane);
@@ -74,7 +75,7 @@ public final class LoadoutBuilderGui {
 
         pane.addItem(myLoadoutsTabItem(player), WIDTH - 1, 0);
 
-        pane.addItem(pointsItem(player), 2, FOOTER_ROW);
+        pane.addItem(meritItem(player), 2, FOOTER_ROW);
         pane.addItem(summaryItem(player), 4, FOOTER_ROW);
         pane.addItem(savePresetItem(player), 6, FOOTER_ROW);
         pane.addItem(closeItem(), 8, FOOTER_ROW);
@@ -94,10 +95,10 @@ public final class LoadoutBuilderGui {
         boolean canSave = presets.canSaveMore(player);
         List<Component> lore = new ArrayList<>();
         if (canSave) {
-            lore.add(line("Click to save your current", NamedTextColor.GRAY));
-            lore.add(line("selection as a new preset.", NamedTextColor.GRAY));
-            lore.add(line("Only free-tier picks carry over —", NamedTextColor.DARK_GRAY));
-            lore.add(line("paid gear is a one-life purchase.", NamedTextColor.DARK_GRAY));
+            lore.add(line("Click to save what you own", NamedTextColor.GRAY));
+            lore.add(line("right now as a new preset.", NamedTextColor.GRAY));
+            lore.add(line("Applying it later skips whatever", NamedTextColor.DARK_GRAY));
+            lore.add(line("you can't afford at the time.", NamedTextColor.DARK_GRAY));
         } else {
             lore.add(line("You're at the saved-loadout limit.", NamedTextColor.RED));
             lore.add(line("Delete one in My Loadouts first.", NamedTextColor.RED));
@@ -109,7 +110,7 @@ public final class LoadoutBuilderGui {
             if (!canSave) return;
             LoadoutPreset saved = presets.save(player, "Loadout " + (presets.list(player).size() + 1));
             if (saved == null) {
-                Branding.error(player, "Couldn't save that preset — try again.");
+                Branding.error(player, "Couldn't save that preset - try again.");
                 return;
             }
             Branding.success(player, "Saved as '" + saved.name() + "'.");
@@ -118,9 +119,10 @@ public final class LoadoutBuilderGui {
     }
 
     private GuiItem tabItem(Player player, LoadoutCatalog.Category category, LoadoutCatalog.Category open) {
-        LoadoutCatalog.Entry selected = loadouts.getSelected(player, category);
+        int owned = ownedCountInCategory(player, category);
+
         List<Component> lore = new ArrayList<>();
-        lore.add(line(selected == null ? "Nothing selected" : selected.name(), NamedTextColor.GRAY));
+        lore.add(line(owned == 0 ? "Nothing owned" : owned + " owned", NamedTextColor.GRAY));
         lore.add(line(category == open ? "Open" : "Click to view", NamedTextColor.YELLOW));
 
         ItemStack stack = item(category == open ? Material.LIME_STAINED_GLASS_PANE : Material.GRAY_STAINED_GLASS_PANE,
@@ -128,50 +130,76 @@ public final class LoadoutBuilderGui {
         return new GuiItem(stack, click -> open(player, category));
     }
 
+    private int ownedCountInCategory(Player player, LoadoutCatalog.Category category) {
+        int count = 0;
+        for (LoadoutCatalog.Entry entry : loadouts.getOwnedEntries(player)) {
+            if (entry.category() == category) count++;
+        }
+        return count;
+    }
+
     private GuiItem tierItem(Player player, LoadoutCatalog.Entry entry) {
+        boolean owned = loadouts.isOwned(player, entry);
         boolean affordable = loadouts.canAfford(player, entry);
-        boolean equipped = entry.key().equals(loadouts.getSelection(player).get(entry.category()));
+        int ownedCount = loadouts.getOwnedCount(player, entry);
+        boolean isArmor = entry.category() == LoadoutCatalog.Category.ARMOR;
 
         List<Component> lore = new ArrayList<>();
-        lore.add(line(entry.isFree() ? "Free" : entry.cost() + " pts",
+        lore.add(line(entry.isFree() ? "Free" : entry.cost() + " Merit",
                 entry.isFree() ? NamedTextColor.GREEN : NamedTextColor.GOLD));
-        if (equipped) {
-            lore.add(line("Equipped", NamedTextColor.GREEN));
+        if (owned) {
+            lore.add(line(isArmor ? "Equipped" : "Owned", NamedTextColor.GREEN));
+        } else if (ownedCount > 0) {
+            // Only reachable for uncapped (potion) entries - capped ones are "owned" above.
+            lore.add(line("Bought: " + ownedCount, NamedTextColor.GRAY));
+            lore.add(affordable ? line("Click to buy another", NamedTextColor.YELLOW)
+                    : line("Not enough Merit this round", NamedTextColor.RED));
         } else if (!affordable) {
-            lore.add(line("Not enough points this life", NamedTextColor.RED));
+            lore.add(line("Not enough Merit this round", NamedTextColor.RED));
         } else {
-            lore.add(line("Click to equip", NamedTextColor.YELLOW));
+            lore.add(line("Click to buy", NamedTextColor.YELLOW));
         }
 
-        Material icon = !affordable && !equipped ? Material.BARRIER : iconFor(entry);
-        ItemStack stack = item(icon, line(entry.name(), equipped ? NamedTextColor.GREEN : NamedTextColor.WHITE), lore);
+        ItemStack preview = !affordable && !owned ? null : loadouts.previewItem(entry);
+        ItemStack stack = preview != null
+                ? decorate(preview, line(entry.name(), owned ? NamedTextColor.GREEN : NamedTextColor.WHITE), lore)
+                : item(!affordable && !owned ? Material.BARRIER : iconFor(entry),
+                        line(entry.name(), owned ? NamedTextColor.GREEN : NamedTextColor.WHITE), lore);
 
         return new GuiItem(stack, click -> {
-            if (equipped) return;
-            if (!loadouts.select(player, entry)) {
-                Branding.error(player, "You can't afford " + entry.name() + " this life.");
-                return;
+            LoadoutService.PurchaseResult result = loadouts.purchase(player, entry);
+            switch (result) {
+                case ALREADY_OWNED -> Branding.error(player, "You already own " + entry.name() + ".");
+                case CANT_AFFORD -> Branding.error(player, "You can't afford " + entry.name() + " this round.");
+                case INVENTORY_FULL -> Branding.error(player, "Your inventory is full.");
+                case SUCCESS -> open(player, entry.category());
             }
-            open(player, entry.category());
         });
     }
 
-    private GuiItem pointsItem(Player player) {
+    private GuiItem meritItem(Player player) {
         List<Component> lore = List.of(
                 line("Spent: " + loadouts.getSpent(player), NamedTextColor.GRAY),
-                line("Remaining: " + loadouts.getRemaining(player), NamedTextColor.GREEN),
-                line("Points reset when you die.", NamedTextColor.DARK_GRAY));
+                line("Banked this round: " + loadouts.getMerit(player), NamedTextColor.GRAY),
+                line("Merit persists through death, resets next round.", NamedTextColor.DARK_GRAY));
         return new GuiItem(item(Material.SUNFLOWER,
-                line("Points: " + loadouts.getPoints(player), NamedTextColor.GOLD), lore));
+                line("Merit: " + loadouts.getRemaining(player), NamedTextColor.GOLD), lore));
     }
 
     private GuiItem summaryItem(Player player) {
-        List<Component> lore = new ArrayList<>();
-        for (LoadoutCatalog.Category category : LoadoutCatalog.Category.values()) {
-            LoadoutCatalog.Entry entry = loadouts.getSelected(player, category);
-            lore.add(line(category.displayName() + ": " + (entry == null ? "-" : entry.name()), NamedTextColor.GRAY));
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        for (LoadoutCatalog.Entry entry : loadouts.getOwnedEntries(player)) {
+            counts.merge(entry.name(), 1, Integer::sum);
         }
-        return new GuiItem(item(Material.PAPER, line("Equipped", NamedTextColor.WHITE), lore));
+
+        List<Component> lore = new ArrayList<>();
+        if (counts.isEmpty()) {
+            lore.add(line("Nothing owned yet", NamedTextColor.GRAY));
+        } else {
+            counts.forEach((name, count) ->
+                    lore.add(line(count > 1 ? name + " x" + count : name, NamedTextColor.GRAY)));
+        }
+        return new GuiItem(item(Material.PAPER, line("Owned", NamedTextColor.WHITE), lore));
     }
 
     private GuiItem closeItem() {
@@ -183,6 +211,14 @@ public final class LoadoutBuilderGui {
         if (entry.isWeapon()) return Material.IRON_HORSE_ARMOR;
         Material material = Material.matchMaterial(entry.item());
         return material == null || material == Material.AIR ? Material.LIGHT_GRAY_STAINED_GLASS_PANE : material;
+    }
+
+    private ItemStack decorate(ItemStack stack, Component name, List<Component> lore) {
+        stack.editMeta(meta -> {
+            meta.displayName(name.decoration(TextDecoration.ITALIC, false));
+            meta.lore(lore.stream().map(l -> l.decoration(TextDecoration.ITALIC, false)).toList());
+        });
+        return stack;
     }
 
     private ItemStack item(Material material, Component name, List<Component> lore) {
